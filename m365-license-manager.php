@@ -1,0 +1,44 @@
+<?php
+/**
+ * Plugin Name: KB- Billing License Manager
+ * Plugin URI: https://kb.macomp.co.il
+ * Description: ניהול ומעקב אחר רישיונות Microsoft 365 עבור מספר Tenants
+ * Version: 1.0.0
+ * Author: O.K Software
+ * Text Domain: m365-license-manager
+ */
+
+if (!defined('ABSPATH')) exit;
+
+// הגדרת קבועים
+define('M365_LM_VERSION', '1.0.0');
+define('M365_LM_PLUGIN_DIR', plugin_dir_path(__FILE__));
+define('M365_LM_PLUGIN_URL', plugin_dir_url(__FILE__));
+
+// טעינת קבצים נדרשים
+require_once M365_LM_PLUGIN_DIR . 'includes/class-database.php';
+require_once M365_LM_PLUGIN_DIR . 'includes/class-api-connector.php';
+require_once M365_LM_PLUGIN_DIR . 'includes/class-shortcodes.php';
+require_once M365_LM_PLUGIN_DIR . 'includes/class-admin.php';
+
+// הפעלה והסרה
+register_activation_hook(__FILE__, 'm365_lm_activate');
+register_deactivation_hook(__FILE__, 'm365_lm_deactivate');
+
+function m365_lm_activate() {
+    M365_LM_Database::create_tables();
+    flush_rewrite_rules();
+}
+
+function m365_lm_deactivate() {
+    flush_rewrite_rules();
+}
+
+// אתחול התוסף
+add_action('plugins_loaded', 'm365_lm_init');
+function m365_lm_init() {
+    new M365_LM_Shortcodes();
+    if (is_admin()) {
+        new M365_LM_Admin();
+    }
+}
