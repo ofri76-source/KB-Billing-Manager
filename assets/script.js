@@ -1,4 +1,6 @@
 jQuery(document).ready(function($) {
+
+    const dcCustomers = Array.isArray(m365Ajax.dcCustomers) ? m365Ajax.dcCustomers : [];
     
     // סנכרון רישיונות
     $('#sync-licenses').on('click', function() {
@@ -193,19 +195,77 @@ jQuery(document).ready(function($) {
     // טאבים בהגדרות
     $('.m365-tab-btn').on('click', function() {
         const tab = $(this).data('tab');
-        
+
         $('.m365-tab-btn').removeClass('active');
         $(this).addClass('active');
-        
+
         $('.m365-tab-content').removeClass('active');
         $('#' + tab + '-tab').addClass('active');
     });
-    
+
+    // חיפוש לקוח קיים מהתוסף המרכזי
+    function renderCustomerResults(results) {
+        const resultsContainer = $('#customer-lookup-results');
+        resultsContainer.empty();
+
+        if (!results.length) {
+            resultsContainer.hide();
+            return;
+        }
+
+        results.forEach(function(customer) {
+            const item = $('<div class="customer-result"></div>').text(
+                `${customer.customer_number} - ${customer.customer_name}`
+            );
+            item.data('customer', customer);
+            resultsContainer.append(item);
+        });
+
+        resultsContainer.show();
+    }
+
+    $('#customer-lookup').on('input', function() {
+        const term = $(this).val().toLowerCase();
+
+        if (!term) {
+            renderCustomerResults([]);
+            return;
+        }
+
+        const matches = dcCustomers.filter(function(customer) {
+            return (
+                (customer.customer_name && customer.customer_name.toLowerCase().includes(term)) ||
+                (customer.customer_number && customer.customer_number.toLowerCase().includes(term))
+            );
+        });
+
+        renderCustomerResults(matches);
+    });
+
+    $(document).on('click', '.customer-result', function() {
+        const customer = $(this).data('customer');
+        if (!customer) {
+            return;
+        }
+
+        $('#customer-number').val(customer.customer_number || '');
+        $('#customer-name').val(customer.customer_name || '');
+        $('#customer-lookup-results').hide();
+    });
+
+    $(document).on('click', function(event) {
+        if (!$(event.target).closest('.customer-lookup').length) {
+            $('#customer-lookup-results').hide();
+        }
+    });
+
     // הוספת לקוח
     $('#add-customer').on('click', function() {
         $('#customer-modal-title').text('הוסף לקוח חדש');
         $('#customer-form')[0].reset();
         $('#customer-id').val('');
+        $('#customer-lookup').val('');
+        $('#customer-lookup-results').hide();
         $('#customer-modal').fadeIn();
     });
     

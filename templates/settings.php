@@ -1,4 +1,10 @@
 <div class="m365-lm-container">
+    <div class="m365-nav-links">
+        <a class="m365-btn m365-btn-secondary" href="https://kb.macomp.co.il/?page_id=14296">ראשי</a>
+        <a class="m365-btn m365-btn-secondary" href="https://kb.macomp.co.il/?page_id=14291">סל מחזור</a>
+        <a class="m365-btn m365-btn-secondary active" href="https://kb.macomp.co.il/?page_id=14292">הגדרות</a>
+        <a class="m365-btn m365-btn-success" href="https://kb.macomp.co.il/?page_id=14292#customers-table">לקוח חדש</a>
+    </div>
     <div class="m365-header">
         <h2>הגדרות</h2>
     </div>
@@ -14,7 +20,7 @@
             <h3>לקוחות רשומים</h3>
             <button id="add-customer" class="m365-btn m365-btn-primary">הוסף לקוח חדש</button>
             
-            <table class="m365-table" style="margin-top: 20px;">
+            <table id="customers-table" class="m365-table" style="margin-top: 20px;">
                 <thead>
                     <tr>
                         <th>מספר לקוח</th>
@@ -100,7 +106,14 @@
         <h3 id="customer-modal-title">הוסף לקוח חדש</h3>
         <form id="customer-form">
             <input type="hidden" id="customer-id" name="id">
-            
+
+            <div class="form-group customer-lookup">
+                <label>חיפוש לקוח קיים (מהתוסף המרכזי):</label>
+                <input type="text" id="customer-lookup" placeholder="התחל להקליד שם או מספר לקוח">
+                <div id="customer-lookup-results" class="customer-lookup-results"></div>
+                <small class="customer-lookup-hint">הקלד כל חלק מהמחרוזת ולחץ על התוצאה כדי למלא את הטופס.</small>
+            </div>
+
             <div class="form-group">
                 <label>מספר לקוח:</label>
                 <input type="text" id="customer-number" name="customer_number" required>
