@@ -61,7 +61,8 @@ class M365_LM_Admin {
         wp_enqueue_script('m365-lm-admin-script', M365_LM_PLUGIN_URL . 'assets/script.js', array('jquery'), M365_LM_VERSION, true);
         wp_localize_script('m365-lm-admin-script', 'm365Ajax', array(
             'ajaxurl' => admin_url('admin-ajax.php'),
-            'nonce' => wp_create_nonce('m365_nonce')
+            'nonce' => wp_create_nonce('m365_nonce'),
+            'dcCustomers' => M365_LM_Database::get_dc_customers(),
         ));
     }
     

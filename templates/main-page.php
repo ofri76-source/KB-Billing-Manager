@@ -1,4 +1,10 @@
 <div class="m365-lm-container">
+    <div class="m365-nav-links">
+        <a class="m365-btn m365-btn-secondary active" href="https://kb.macomp.co.il/?page_id=14296">ראשי</a>
+        <a class="m365-btn m365-btn-secondary" href="https://kb.macomp.co.il/?page_id=14291">סל מחזור</a>
+        <a class="m365-btn m365-btn-secondary" href="https://kb.macomp.co.il/?page_id=14292">הגדרות</a>
+        <a class="m365-btn m365-btn-success" href="https://kb.macomp.co.il/?page_id=14292#customers-table">לקוח חדש</a>
+    </div>
     <div class="m365-header">
         <h2>ניהול רישיונות Microsoft 365</h2>
         <div class="m365-actions">

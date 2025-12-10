@@ -142,4 +142,22 @@ class M365_LM_Database {
         $table = $wpdb->prefix . 'm365_licenses';
         return $wpdb->query("DELETE FROM $table WHERE is_deleted = 1");
     }
+
+    /**
+     * קבלת רשימת לקוחות מהתוסף המרכזי (dc_customers)
+     */
+    public static function get_dc_customers() {
+        global $wpdb;
+        $table = $wpdb->prefix . 'dc_customers';
+
+        // בדיקה שהטבלה קיימת לפני ניסיון משיכה
+        $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table));
+        if ($table_exists !== $table) {
+            return array();
+        }
+
+        return $wpdb->get_results(
+            "SELECT customer_name, customer_number FROM $table WHERE is_deleted = 0 OR is_deleted IS NULL ORDER BY customer_name ASC"
+        );
+    }
 }
