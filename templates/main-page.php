@@ -3,12 +3,14 @@
         $main_url     = 'https://kb.macomp.co.il/?page_id=14296';
         $recycle_url  = 'https://kb.macomp.co.il/?page_id=14291';
         $settings_url = 'https://kb.macomp.co.il/?page_id=14292';
+        $logs_url    = 'https://kb.macomp.co.il/?page_id=14285';
         $active       = isset($active) ? $active : '';
     ?>
     <div class="m365-nav-links">
         <a href="<?php echo esc_url($main_url); ?>" class="<?php echo $active === 'main' ? 'active' : ''; ?>">ראשי</a>
         <a href="<?php echo esc_url($recycle_url); ?>" class="<?php echo $active === 'recycle' ? 'active' : ''; ?>">סל מחזור</a>
         <a href="<?php echo esc_url($settings_url); ?>" class="<?php echo $active === 'settings' ? 'active' : ''; ?>">הגדרות</a>
+            <a href="<?php echo esc_url($logs_url); ?>" class="<?php echo $active === 'logs' ? 'active' : ''; ?>">לוגים</a>
     </div>
     <div class="m365-header">
         <h2>ניהול רישיונות Microsoft 365</h2>
