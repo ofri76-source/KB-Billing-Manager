@@ -157,17 +157,17 @@
 
             <div class="form-group">
                 <label>מספר לקוח:</label>
-                <input type="text" id="customer-number" name="customer_number" required>
+                <input type="text" id="customer-number" name="customer_number" placeholder="ימולא אוטומטית לאחר הרצת הסקריפט">
             </div>
             
             <div class="form-group">
                 <label>שם לקוח:</label>
-                <input type="text" id="customer-name" name="customer_name" required>
+                <input type="text" id="customer-name" name="customer_name" placeholder="ימולא אוטומטית לאחר הרצת הסקריפט">
             </div>
             
             <div class="form-group">
                 <label>Tenant ID:</label>
-                <input type="text" id="customer-tenant-id" name="tenant_id" required>
+                <input type="text" id="customer-tenant-id" name="tenant_id" placeholder="ימולא אוטומטית לאחר הרצת הסקריפט">
             </div>
             
             <div class="form-group">
