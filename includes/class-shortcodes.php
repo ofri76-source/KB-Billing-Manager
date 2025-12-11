@@ -14,6 +14,7 @@ class M365_LM_Shortcodes {
         add_action('wp_ajax_m365_restore_license', array($this, 'ajax_restore_license'));
         add_action('wp_ajax_m365_hard_delete', array($this, 'ajax_hard_delete'));
         add_action('wp_ajax_m365_save_license', array($this, 'ajax_save_license'));
+        add_action('wp_ajax_kbbm_test_connection', array($this, 'ajax_test_connection'));
     }
     
     public function enqueue_scripts() {
@@ -21,13 +22,15 @@ class M365_LM_Shortcodes {
         wp_enqueue_script('m365-lm-script', M365_LM_PLUGIN_URL . 'assets/script.js', array('jquery'), M365_LM_VERSION, true);
         wp_localize_script('m365-lm-script', 'm365Ajax', array(
             'ajaxurl' => admin_url('admin-ajax.php'),
-            'nonce' => wp_create_nonce('m365_nonce')
+            'nonce' => wp_create_nonce('m365_nonce'),
+            'dcCustomers' => M365_LM_Database::get_dc_customers(),
         ));
     }
     
     // דף ראשי
     public function main_page($atts) {
         ob_start();
+        $active = 'main';
         $licenses = M365_LM_Database::get_licenses();
         $customers = M365_LM_Database::get_customers();
         include M365_LM_PLUGIN_DIR . 'templates/main-page.php';
@@ -37,6 +40,7 @@ class M365_LM_Shortcodes {
     // סל מחזור
     public function recycle_bin($atts) {
         ob_start();
+        $active = 'recycle';
         $deleted_licenses = M365_LM_Database::get_licenses(true);
         $deleted_licenses = array_filter($deleted_licenses, function($license) {
             return $license->is_deleted == 1;
@@ -48,7 +52,9 @@ class M365_LM_Shortcodes {
     // הגדרות
     public function settings_page($atts) {
         ob_start();
+        $active = 'settings';
         $customers = M365_LM_Database::get_customers();
+        $license_types = M365_LM_Database::get_license_types();
         include M365_LM_PLUGIN_DIR . 'templates/settings.php';
         return ob_get_clean();
     }
@@ -56,38 +62,93 @@ class M365_LM_Shortcodes {
     // AJAX - סנכרון רישיונות
     public function ajax_sync_licenses() {
         check_ajax_referer('m365_nonce', 'nonce');
-        
+
         $customer_id = intval($_POST['customer_id']);
         $customer = M365_LM_Database::get_customer($customer_id);
-        
+
         if (!$customer) {
             wp_send_json_error(array('message' => 'לקוח לא נמצא'));
         }
-        
+
+        if (empty($customer->tenant_id) || empty($customer->client_id) || empty($customer->client_secret)) {
+            wp_send_json_error(array('message' => 'חסרים פרטי Tenant/Client להגדרת חיבור')); 
+        }
+
         $api = new M365_LM_API_Connector(
             $customer->tenant_id,
             $customer->client_id,
             $customer->client_secret
         );
-        
+
         $skus = $api->get_subscribed_skus();
-        
-        if (isset($skus['error'])) {
-            wp_send_json_error(array('message' => $skus['error']));
+        if (empty($skus['success'])) {
+            M365_LM_Database::update_connection_status($customer_id, 'failed', $skus['message'] ?? 'Graph error');
+            wp_send_json_error(array('message' => 'Graph error: ' . ($skus['message'] ?? 'Unknown error')));
         }
-        
-        // שמירת הרישיונות בדאטהבייס
-        foreach ($skus as $sku) {
-            M365_LM_Database::save_license(array(
-                'customer_id' => $customer_id,
-                'sku_id' => $sku['sku_id'],
-                'plan_name' => $sku['plan_name'],
-                'quantity' => $sku['enabled_units'],
-                'billing_cycle' => 'monthly' // ברירת מחדל
+
+        $licenses_saved = 0;
+        foreach ($skus['skus'] as $sku) {
+            $data = array(
+                'customer_id'      => $customer_id,
+                'sku_id'           => $sku['sku_id'],
+                'plan_name'        => $sku['plan_name'],
+                'quantity'         => $sku['enabled_units'],
+                'billing_cycle'    => 'monthly',
+                'billing_frequency'=> '1',
+                'cost_price'       => 0,
+                'selling_price'    => 0,
+            );
+
+            M365_LM_Database::upsert_license_by_sku($customer_id, $sku['sku_id'], $data);
+            $licenses_saved++;
+        }
+
+        M365_LM_Database::update_connection_status($customer_id, 'connected', 'Last sync successful');
+
+        wp_send_json_success(array('message' => 'סנכרון הושלם בהצלחה', 'count' => $licenses_saved));
+    }
+
+    /**
+     * בדיקת חיבור לגרף עבור לקוח
+     */
+    public function ajax_test_connection() {
+        check_ajax_referer('m365_nonce', 'nonce');
+
+        $customer_id = intval($_POST['id']);
+        $customer    = M365_LM_Database::get_customer($customer_id);
+
+        if (!$customer) {
+            wp_send_json_error(array('message' => 'לקוח לא נמצא'));
+        }
+
+        if (empty($customer->tenant_id) || empty($customer->client_id) || empty($customer->client_secret)) {
+            wp_send_json_error(array('message' => 'חסרים פרטי Tenant/Client להגדרת חיבור'));
+        }
+
+        $api = new M365_LM_API_Connector(
+            $customer->tenant_id,
+            $customer->client_id,
+            $customer->client_secret
+        );
+
+        $result = $api->test_connection();
+
+        if (!empty($result['success'])) {
+            M365_LM_Database::update_connection_status($customer_id, 'connected', $result['message'] ?? 'Connected');
+            wp_send_json_success(array(
+                'status'  => 'connected',
+                'message' => $result['message'] ?? 'Connected',
+                'time'    => current_time('mysql'),
             ));
         }
-        
-        wp_send_json_success(array('message' => 'סנכרון הושלם בהצלחה', 'count' => count($skus)));
+
+        $message = $result['message'] ?? 'Connection failed';
+        M365_LM_Database::update_connection_status($customer_id, 'failed', $message);
+        wp_send_json_error(array(
+            'status'  => 'failed',
+            'message' => $message,
+            'time'    => current_time('mysql'),
+        ));
     }
     
     // AJAX - מחיקה רכה
