@@ -183,6 +183,60 @@
     justify-content: center;
 }
 
+.kbbm-period-form {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    margin-left: 12px;
+}
+
+.kbbm-period-form label {
+    font-weight: 600;
+    color: #323130;
+}
+
+.kbbm-report-table thead .customer-header-row {
+    background-color: #003b75;
+    color: #fff;
+}
+
+.kbbm-report-table thead .plans-header-row {
+    background-color: #cfe8ff;
+    font-weight: bold;
+}
+
+.kbbm-report-table tbody tr.customer-summary {
+    background-color: #0078d4;
+    color: #fff;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.kbbm-report-table tbody tr.customer-summary:hover,
+.kbbm-report-table tbody tr.customer-summary.open {
+    background-color: #005a9e;
+}
+
+.kbbm-report-table tbody tr.license-row:nth-of-type(even) {
+    background-color: #e9f3ff;
+}
+
+.kbbm-report-table tbody tr.license-row:nth-of-type(odd) {
+    background-color: #f6f9ff;
+}
+
+.kb-notes-row .kb-notes-cell {
+    direction: rtl;
+    text-align: right;
+    background-color: #cfe8ff;
+    padding: 5px 10px;
+    font-size: 14px;
+}
+
+.kb-notes-row strong {
+    margin-left: 5px;
+}
+
 .kbbm-main-table {
     margin-top: 20px;
     border: 1px solid #dfe1e6;

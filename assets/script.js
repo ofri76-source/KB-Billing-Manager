@@ -97,33 +97,39 @@ jQuery(document).ready(function($) {
     $(document).on('click', '.edit-license', function() {
         const row = $(this).closest('tr');
         const id = row.data('id');
-        
+
         // מילוי הנתונים מהשורה
         $('#license-id').val(id);
-        $('#license-plan-name').val(row.find('.plan-name').text());
+        $('#license-customer-id').val(row.data('customer'));
+        $('#license-plan-name').val(row.find('.plan-name').text().trim());
+        $('#license-billing-account').val(row.find('[data-field="billing_account"]').text().trim());
         $('#license-cost').val(row.find('[data-field="cost_price"]').text().trim());
         $('#license-selling').val(row.find('[data-field="selling_price"]').text().trim());
-        $('#license-quantity').val(row.data('enabled') || row.data('quantity') || 0);
+        $('#license-quantity').val(row.data('quantity') || row.data('enabled') || 0);
 
         const billingCycle = row.data('billing-cycle') || 'monthly';
         $('#license-billing-cycle').val(billingCycle);
         $('#license-billing-frequency').val(row.data('billing-frequency') || '');
-        
+        $('#license-renewal-date').val(row.find('[data-field="renewal_date"]').text().trim());
+        $('#license-notes').val(row.data('notes') || '');
+
         $('#edit-license-modal').fadeIn();
     });
-    
+
     // שמירת רישיון
     $('#edit-license-form').on('submit', function(e) {
         e.preventDefault();
-        
-        const formData = $(this).serializeArray();
-        formData.push({ name: 'action', value: 'm365_save_license' });
-        formData.push({ name: 'nonce', value: m365Ajax.nonce });
-        
+
+        const formData = new FormData(this);
+        formData.append('action', 'm365_save_license');
+        formData.append('nonce', m365Ajax.nonce);
+
         $.ajax({
             url: m365Ajax.ajaxurl,
             type: 'POST',
-            data: $.param(formData),
+            data: formData,
+            processData: false,
+            contentType: false,
             success: function(response) {
                 if (response.success) {
                     showMessage('success', 'הרישיון נשמר בהצלחה');
@@ -511,16 +517,17 @@ jQuery(document).ready(function($) {
     });
 
     // פתיחה/סגירה של פירוט לקוחות בדף הראשי
-    $(document).on('click', '.kbbm-main-row', function() {
-        const targetId = $(this).data('target');
-        const details = $('#' + targetId);
+    $(document).on('click', '.customer-summary', function() {
+        const customerId = $(this).data('customer');
+        const relatedRows = $(`.license-row[data-customer='${customerId}'], .kb-notes-row[data-customer='${customerId}']`);
 
-        if (!details.length) {
+        if (!relatedRows.length) {
             return;
         }
 
+        const isOpen = $(this).hasClass('open');
         $(this).toggleClass('open');
-        details.slideToggle(200);
+        relatedRows.toggle(!isOpen);
     });
 
     // העתקת סקריפט API

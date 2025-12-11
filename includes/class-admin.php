@@ -689,15 +689,15 @@ function Grant-GraphAppRoles {
                 Invoke-RestMethod -Uri "$GraphBase/servicePrincipals/$ClientSpId/appRoleAssignments" `
                     -Headers $Headers -Method POST -ContentType "application/json" -Body $body | Out-Null
 
-                Write-Host "Assigned Graph app role $roleId" -ForegroundColor Green
+                Write-Host ("Assigned Graph app role {0}" -f $roleId) -ForegroundColor Green
             }
             catch {
                 $msg = $_.Exception.Message
                 if ($msg -match "409" -or $msg -match "already exists") {
-                    Write-Host "Graph app role $roleId already assigned (already existed)." -ForegroundColor Yellow
+                    Write-Host ("Graph app role {0} already assigned (already existed)." -f $roleId) -ForegroundColor Yellow
                 }
                 else {
-                    Write-Host "Failed to assign Graph app role $roleId: $msg" -ForegroundColor Yellow
+                    Write-Host ("Failed to assign Graph app role {0}: {1}" -f $roleId, $msg) -ForegroundColor Yellow
                 }
             }
         }

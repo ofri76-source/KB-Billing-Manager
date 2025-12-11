@@ -207,11 +207,14 @@ class M365_LM_Shortcodes {
             'id' => intval($_POST['id']),
             'customer_id' => intval($_POST['customer_id']),
             'plan_name' => sanitize_text_field($_POST['plan_name']),
+            'billing_account' => isset($_POST['billing_account']) ? sanitize_text_field($_POST['billing_account']) : '',
             'cost_price' => floatval($_POST['cost_price']),
             'selling_price' => floatval($_POST['selling_price']),
             'quantity' => intval($_POST['quantity']),
             'billing_cycle' => sanitize_text_field($_POST['billing_cycle']),
-            'billing_frequency' => sanitize_text_field($_POST['billing_frequency'])
+            'billing_frequency' => sanitize_text_field($_POST['billing_frequency']),
+            'renewal_date' => !empty($_POST['renewal_date']) ? sanitize_text_field($_POST['renewal_date']) : null,
+            'notes' => isset($_POST['notes']) ? sanitize_textarea_field($_POST['notes']) : '',
         );
         
         M365_LM_Database::save_license($data);

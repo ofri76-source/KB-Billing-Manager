@@ -69,6 +69,7 @@ class M365_LM_Database {
             customer_id bigint(20) NOT NULL,
             sku_id varchar(255) NOT NULL,
             plan_name varchar(500) NOT NULL,
+            billing_account varchar(255) DEFAULT NULL,
             enabled_units int(11) NOT NULL DEFAULT 0,
             consumed_units int(11) NOT NULL DEFAULT 0,
             status_text varchar(100) DEFAULT NULL,
@@ -77,6 +78,8 @@ class M365_LM_Database {
             quantity int(11) NOT NULL DEFAULT 0,
             billing_cycle varchar(20) NOT NULL DEFAULT 'monthly',
             billing_frequency varchar(50) DEFAULT NULL,
+            renewal_date date DEFAULT NULL,
+            notes text DEFAULT NULL,
             is_deleted tinyint(1) DEFAULT 0,
             deleted_at datetime DEFAULT NULL,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
@@ -93,6 +96,7 @@ class M365_LM_Database {
             customer_id BIGINT(20) UNSIGNED NOT NULL,
             program_name VARCHAR(255) NOT NULL,
             sku VARCHAR(150) DEFAULT '',
+            billing_account VARCHAR(255) DEFAULT NULL,
             cost_price DECIMAL(10,2) DEFAULT 0,
             selling_price DECIMAL(10,2) DEFAULT 0,
             quantity INT(11) DEFAULT 0,
@@ -101,6 +105,8 @@ class M365_LM_Database {
             status_text varchar(100) DEFAULT NULL,
             billing_cycle ENUM('monthly','yearly') DEFAULT 'monthly',
             billing_frequency INT(11) DEFAULT 1,
+            renewal_date DATE DEFAULT NULL,
+            notes TEXT DEFAULT NULL,
             is_deleted TINYINT(1) DEFAULT 0,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -130,6 +136,14 @@ class M365_LM_Database {
         dbDelta($sql_kb_licenses);
         dbDelta($sql_license_types);
         dbDelta($sql_logs);
+
+        self::maybe_add_column($table_licenses, 'billing_account', "billing_account VARCHAR(255) DEFAULT NULL AFTER plan_name");
+        self::maybe_add_column($table_licenses, 'renewal_date', "renewal_date DATE DEFAULT NULL AFTER billing_frequency");
+        self::maybe_add_column($table_licenses, 'notes', "notes TEXT NULL AFTER renewal_date");
+
+        self::maybe_add_column($kb_licenses_table, 'billing_account', "billing_account VARCHAR(255) DEFAULT NULL AFTER sku");
+        self::maybe_add_column($kb_licenses_table, 'renewal_date', "renewal_date DATE DEFAULT NULL AFTER billing_frequency");
+        self::maybe_add_column($kb_licenses_table, 'notes', "notes TEXT NULL AFTER renewal_date");
     }
     
     // פונקציות CRUD ללקוחות
@@ -167,7 +181,7 @@ class M365_LM_Database {
         $where = $include_deleted ? "" : "WHERE l.is_deleted = 0";
         
         return $wpdb->get_results("
-            SELECT l.*, c.customer_number, c.customer_name 
+            SELECT l.*, c.customer_number, c.customer_name, c.tenant_domain
             FROM $table_licenses l
             LEFT JOIN $table_customers c ON l.customer_id = c.id
             $where
@@ -403,5 +417,17 @@ class M365_LM_Database {
         );
 
         return $wpdb->update($table, $data, array('id' => intval($customer_id)));
+    }
+
+    private static function maybe_add_column($table, $column, $definition) {
+        global $wpdb;
+
+        $column_exists = $wpdb->get_var($wpdb->prepare("SHOW COLUMNS FROM {$table} LIKE %s", $column)) === $column;
+
+        $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table)) === $table;
+
+        if ($table_exists && !$column_exists) {
+            $wpdb->query("ALTER TABLE {$table} ADD COLUMN {$definition}");
+        }
     }
 }
