@@ -2,12 +2,12 @@
 if (!defined('ABSPATH')) exit;
 
 class M365_LM_Database {
-    
+
     public static function create_tables() {
         global $wpdb;
         $charset_collate = $wpdb->get_charset_collate();
 
-        // טבלת לקוחות
+        // טבלת לקוחות (ברירת מחדל קיימת)
         $table_customers = $wpdb->prefix . 'm365_customers';
         $sql_customers = "CREATE TABLE IF NOT EXISTS $table_customers (
             id bigint(20) NOT NULL AUTO_INCREMENT,
@@ -22,6 +22,22 @@ class M365_LM_Database {
             PRIMARY KEY (id),
             UNIQUE KEY customer_number (customer_number)
         ) $charset_collate;";
+
+        // טבלת לקוחות חדשה עם סכימה מעודכנת
+        $kb_customers_table = $wpdb->prefix . 'kb_billing_customers';
+        $sql_kb_customers = "CREATE TABLE IF NOT EXISTS {$kb_customers_table} (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            customer_number varchar(50) DEFAULT NULL,
+            customer_name varchar(255) DEFAULT NULL,
+            tenant_id varchar(255) DEFAULT NULL,
+            client_id varchar(255) DEFAULT NULL,
+            client_secret text DEFAULT NULL,
+            tenant_domain varchar(255) DEFAULT NULL,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY customer_number (customer_number)
+        ) {$charset_collate};";
 
         // טבלת רישיונות קיימת
         $table_licenses = $wpdb->prefix . 'm365_licenses';
@@ -80,6 +96,7 @@ class M365_LM_Database {
 
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         dbDelta($sql_customers);
+        dbDelta($sql_kb_customers);
         dbDelta($sql_licenses);
         dbDelta($sql_kb_licenses);
         dbDelta($sql_license_types);
@@ -88,20 +105,20 @@ class M365_LM_Database {
     // פונקציות CRUD ללקוחות
     public static function get_customers() {
         global $wpdb;
-        $table = $wpdb->prefix . 'm365_customers';
+        $table = self::get_customers_table_name();
         return $wpdb->get_results("SELECT * FROM $table ORDER BY customer_name ASC");
     }
-    
+
     public static function get_customer($id) {
         global $wpdb;
-        $table = $wpdb->prefix . 'm365_customers';
+        $table = self::get_customers_table_name();
         return $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id = %d", $id));
     }
-    
+
     public static function save_customer($data) {
         global $wpdb;
-        $table = $wpdb->prefix . 'm365_customers';
-        
+        $table = self::get_customers_table_name();
+
         if (isset($data['id']) && $data['id'] > 0) {
             $wpdb->update($table, $data, array('id' => $data['id']));
             return $data['id'];
@@ -114,8 +131,8 @@ class M365_LM_Database {
     // פונקציות CRUD לרישיונות
     public static function get_licenses($include_deleted = false) {
         global $wpdb;
-        $table_licenses = $wpdb->prefix . 'm365_licenses';
-        $table_customers = $wpdb->prefix . 'm365_customers';
+        $table_licenses  = $wpdb->prefix . 'm365_licenses';
+        $table_customers = self::get_customers_table_name();
         
         $where = $include_deleted ? "" : "WHERE l.is_deleted = 0";
         
@@ -216,5 +233,23 @@ class M365_LM_Database {
         return $wpdb->get_results(
             "SELECT customer_name, customer_number FROM {$table_to_use} WHERE is_deleted = 0 OR is_deleted IS NULL ORDER BY customer_name ASC"
         );
+    }
+
+    /**
+     * זיהוי טבלת הלקוחות בשימוש (עדיפות לטבלה החדשה)
+     */
+    public static function get_customers_table_name() {
+        global $wpdb;
+        $kb_table      = $wpdb->prefix . 'kb_billing_customers';
+        $legacy_table  = $wpdb->prefix . 'm365_customers';
+
+        $kb_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $kb_table)) === $kb_table;
+        $legacy_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $legacy_table)) === $legacy_table;
+
+        if ($kb_exists) {
+            return $kb_table;
+        }
+
+        return $legacy_exists ? $legacy_table : $kb_table;
     }
 }

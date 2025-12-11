@@ -21,6 +21,9 @@ require_once M365_LM_PLUGIN_DIR . 'includes/class-api-connector.php';
 require_once M365_LM_PLUGIN_DIR . 'includes/class-shortcodes.php';
 require_once M365_LM_PLUGIN_DIR . 'includes/class-admin.php';
 
+add_action('admin_post_kbbm_download_script', 'kbbm_download_script_handler');
+add_action('admin_post_nopriv_kbbm_download_script', 'kbbm_download_script_handler');
+
 // הפעלה והסרה
 register_activation_hook(__FILE__, 'kb_billing_manager_activate');
 register_deactivation_hook(__FILE__, 'm365_lm_deactivate');
@@ -43,7 +46,5 @@ function m365_lm_deactivate() {
 add_action('plugins_loaded', 'm365_lm_init');
 function m365_lm_init() {
     new M365_LM_Shortcodes();
-    if (is_admin()) {
-        new M365_LM_Admin();
-    }
+    new M365_LM_Admin();
 }

@@ -9,6 +9,11 @@ class M365_LM_Admin {
         add_action('wp_ajax_m365_save_customer', array($this, 'ajax_save_customer'));
         add_action('wp_ajax_m365_delete_customer', array($this, 'ajax_delete_customer'));
         add_action('wp_ajax_m365_get_customer', array($this, 'ajax_get_customer'));
+        add_action('wp_ajax_kbbm_save_customer', array($this, 'ajax_save_customer'));
+        add_action('wp_ajax_kbbm_delete_customer', array($this, 'ajax_delete_customer'));
+        add_action('wp_ajax_kbbm_get_customer', array($this, 'ajax_get_customer'));
+        add_action('wp_ajax_kbbm_generate_script', array($this, 'ajax_generate_script'));
+        add_action('wp_ajax_nopriv_kbbm_generate_script', array($this, 'ajax_generate_script'));
     }
     
     // הוספת תפריט ניהול
@@ -72,7 +77,7 @@ class M365_LM_Admin {
         $customers = M365_LM_Database::get_customers();
         $active = 'main';
         ?>
-        <div class="wrap">
+        <div class="wrap kbbm-wrap">
             <h1>ניהול רישיונות Microsoft 365</h1>
             <?php include M365_LM_PLUGIN_DIR . 'templates/main-page.php'; ?>
         </div>
@@ -85,7 +90,7 @@ class M365_LM_Admin {
         $license_types = M365_LM_Database::get_license_types();
         $active = 'settings';
         ?>
-        <div class="wrap">
+        <div class="wrap kbbm-wrap">
             <h1>ניהול לקוחות</h1>
             <?php include M365_LM_PLUGIN_DIR . 'templates/settings.php'; ?>
         </div>
@@ -100,7 +105,7 @@ class M365_LM_Admin {
         });
         $active = 'recycle';
         ?>
-        <div class="wrap">
+        <div class="wrap kbbm-wrap">
             <h1>סל מחזור</h1>
             <?php include M365_LM_PLUGIN_DIR . 'templates/recycle-bin.php'; ?>
         </div>
@@ -111,7 +116,7 @@ class M365_LM_Admin {
     public function api_settings_page() {
         $customers = M365_LM_Database::get_customers();
         ?>
-        <div class="wrap">
+        <div class="wrap kbbm-wrap">
             <h1>הגדרות API</h1>
             <div class="m365-lm-container">
                 <div class="m365-section">
@@ -202,7 +207,7 @@ class M365_LM_Admin {
     // AJAX - מחיקת לקוח
     public function ajax_delete_customer() {
         check_ajax_referer('m365_nonce', 'nonce');
-        
+
         if (!current_user_can('manage_options')) {
             wp_send_json_error(array('message' => 'אין הרשאה'));
         }
@@ -221,7 +226,7 @@ class M365_LM_Admin {
             wp_send_json_error(array('message' => 'לא ניתן למחוק לקוח עם רישיונות קיימים'));
         }
         
-        $table_customers = $wpdb->prefix . 'm365_customers';
+        $table_customers = M365_LM_Database::get_customers_table_name();
         $result = $wpdb->delete($table_customers, array('id' => $customer_id));
         
         if ($result) {
@@ -230,4 +235,140 @@ class M365_LM_Admin {
             wp_send_json_error(array('message' => 'שגיאה במחיקת הלקוח'));
         }
     }
+
+    // AJAX - יצירת סקריפט PowerShell מותאם ללקוח
+    public function ajax_generate_script() {
+        check_ajax_referer('m365_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'אין הרשאה'));
+        }
+
+        $customer_id = intval($_POST['customer_id']);
+        $script      = kbbm_generate_ps_script($customer_id);
+
+        wp_send_json(array('script' => $script));
+    }
+}
+
+/**
+ * יצירת סקריפט PowerShell מותאם ללקוח שנבחר
+ */
+function kbbm_generate_ps_script($customer_id) {
+    global $wpdb;
+
+    $table = M365_LM_Database::get_customers_table_name();
+    $row   = $wpdb->get_row(
+        $wpdb->prepare(
+            "SELECT customer_number, customer_name, tenant_domain FROM {$table} WHERE id = %d",
+            $customer_id
+        ),
+        ARRAY_A
+    );
+
+    if (!$row) {
+        return '';
+    }
+
+    $customer_number = sanitize_text_field($row['customer_number'] ?? '');
+    $customer_name   = sanitize_text_field($row['customer_name'] ?? '');
+    $tenant_domain   = sanitize_text_field($row['tenant_domain'] ?? '');
+
+    $script = <<<PS
+<#
+KB Billing Manager Setup Script
+Customer: {$customer_name} ({$customer_number})
+#>
+
+param(
+    [string]$TenantDomain = "{$tenant_domain}"
+)
+
+# Microsoft 365 API Setup Script
+# הפעל סקריפט זה ב-PowerShell כמנהל
+
+# התחברות ל-Azure AD
+Connect-AzureAD -TenantDomain "$TenantDomain"
+
+# יצירת App Registration
+$appName = "M365 License Manager - $TenantDomain"
+$app = New-AzureADApplication -DisplayName $appName
+
+# יצירת Service Principal
+$sp = New-AzureADServicePrincipal -AppId $app.AppId
+
+# יצירת Client Secret (תוקף 2 שנים)
+$secret = New-AzureADApplicationPasswordCredential -ObjectId $app.ObjectId -CustomKeyIdentifier "M365LM" -EndDate (Get-Date).AddYears(2)
+
+# הענקת הרשאות Microsoft Graph API
+$graphResourceId = "00000003-0000-0000-c000-000000000000"
+
+# Directory.Read.All
+$directoryReadAll = "7ab1d382-f21e-4acd-a863-ba3e13f7da61"
+
+# Organization.Read.All
+$orgReadAll = "498476ce-e0fe-48b0-b801-37ba7e2685c6"
+
+$requiredResourceAccess = New-Object -TypeName "Microsoft.Open.AzureAD.Model.RequiredResourceAccess"
+$requiredResourceAccess.ResourceAppId = $graphResourceId
+
+$permission1 = New-Object -TypeName "Microsoft.Open.AzureAD.Model.ResourceAccess"
+$permission1.Type = "Role"
+$permission1.Id = $directoryReadAll
+
+$permission2 = New-Object -TypeName "Microsoft.Open.AzureAD.Model.ResourceAccess"
+$permission2.Type = "Role"
+$permission2.Id = $orgReadAll
+
+$requiredResourceAccess.ResourceAccess = $permission1, $permission2
+
+Set-AzureADApplication -ObjectId $app.ObjectId -RequiredResourceAccess $requiredResourceAccess
+
+Write-Host "=================================="
+Write-Host "App Registration נוצר בהצלחה!"
+Write-Host "=================================="
+Write-Host "לקוח: {$customer_name} ({$customer_number})"
+Write-Host "Tenant Domain: $TenantDomain"
+Write-Host "Tenant ID: " (Get-AzureADTenantDetail).ObjectId
+Write-Host "Application (Client) ID: " $app.AppId
+Write-Host "Client Secret: " $secret.Value
+Write-Host "=================================="
+Write-Host "העתק את הפרטים האלה למסך ההגדרות בתוסף WordPress"
+Write-Host "=================================="
+Write-Host ""
+Write-Host "חשוב! עבור ל-Azure Portal ואשר את ההרשאות:"
+Write-Host "1. היכנס ל-Azure Portal (portal.azure.com)"
+Write-Host "2. עבור ל-Azure Active Directory > App Registrations"
+Write-Host "3. מצא את האפליקציה: $appName"
+Write-Host "4. לחץ על API Permissions"
+Write-Host "5. לחץ על 'Grant admin consent for $TenantDomain'"
+Write-Host "=================================="
+PS;
+
+    return $script;
+}
+
+/**
+ * Handler להורדת קובץ הסקריפט ללקוח
+ */
+function kbbm_download_script_handler() {
+    if (!current_user_can('manage_options')) {
+        wp_die('No permission');
+    }
+
+    $customer_id = intval($_GET['customer_id'] ?? 0);
+    if (!$customer_id) {
+        wp_die('No customer selected');
+    }
+
+    $script = kbbm_generate_ps_script($customer_id);
+
+    if (empty($script)) {
+        wp_die('Customer not found');
+    }
+
+    header('Content-Type: application/octet-stream');
+    header('Content-Disposition: attachment; filename="KBBM-Setup-' . $customer_id . '.ps1"');
+    echo $script;
+    exit;
 }

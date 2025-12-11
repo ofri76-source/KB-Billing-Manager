@@ -44,15 +44,19 @@
                     <?php else: ?>
                         <?php foreach ($customers as $customer): ?>
                             <tr>
+                                <?php
+                                    $tenant_id  = isset($customer->tenant_id) ? (string) $customer->tenant_id : '';
+                                    $client_id  = isset($customer->client_id) ? (string) $customer->client_id : '';
+                                ?>
                                 <td><?php echo esc_html($customer->customer_number); ?></td>
                                 <td><?php echo esc_html($customer->customer_name); ?></td>
-                                <td><?php echo esc_html(substr($customer->tenant_id, 0, 20)) . '...'; ?></td>
-                                <td><?php echo esc_html(substr($customer->client_id, 0, 20)) . '...'; ?></td>
+                                <td><?php echo esc_html(substr($tenant_id, 0, 20)) . (strlen($tenant_id) > 20 ? '...' : ''); ?></td>
+                                <td><?php echo esc_html(substr($client_id, 0, 20)) . (strlen($client_id) > 20 ? '...' : ''); ?></td>
                                 <td>
-                                    <button class="m365-btn m365-btn-small edit-customer" data-id="<?php echo $customer->id; ?>">
+                                    <button class="m365-btn m365-btn-small edit-customer kbbm-edit-customer" data-id="<?php echo $customer->id; ?>">
                                         ערוך
                                     </button>
-                                    <button class="m365-btn m365-btn-small m365-btn-danger delete-customer" data-id="<?php echo $customer->id; ?>">
+                                    <button class="m365-btn m365-btn-small m365-btn-danger delete-customer kbbm-delete-customer" data-id="<?php echo $customer->id; ?>">
                                         מחק
                                     </button>
                                 </td>
@@ -72,22 +76,25 @@
             
             <div class="form-group">
                 <label>בחר לקוח:</label>
-                <select id="api-customer-select">
+                <select id="api-customer-select" data-download-base="<?php echo esc_url(admin_url('admin-post.php?action=kbbm_download_script&customer_id=')); ?>">
                     <option value="">בחר לקוח</option>
                     <?php foreach ($customers as $customer): ?>
-                        <option value="<?php echo esc_attr($customer->tenant_domain); ?>">
-                            <?php echo esc_html($customer->customer_name); ?>
+                        <option value="<?php echo esc_attr($customer->id); ?>">
+                            <?php echo esc_html($customer->customer_name); ?> (<?php echo esc_html($customer->customer_number); ?>)
                         </option>
                     <?php endforeach; ?>
                 </select>
             </div>
-            
+
             <button id="generate-api-script" class="m365-btn m365-btn-primary">צור סקריפט</button>
-            
+
             <div id="api-script-output" style="display:none; margin-top: 20px;">
                 <h4>סקריפט PowerShell:</h4>
                 <textarea id="api-script-text" readonly style="width: 100%; height: 400px; font-family: monospace; direction: ltr; text-align: left;"></textarea>
-                <button id="copy-api-script" class="m365-btn m365-btn-success">העתק ללוח</button>
+                <div class="form-actions" style="margin-top:10px;">
+                    <button id="copy-api-script" class="m365-btn m365-btn-success" type="button">העתק ללוח</button>
+                    <a id="download-api-script" class="m365-btn m365-btn-secondary" href="#" target="_blank" rel="noreferrer">הורד סקריפט</a>
+                </div>
             </div>
             
             <div class="m365-info-box" style="margin-top: 20px;">
@@ -141,8 +148,8 @@
 </div>
 
 <!-- Modal לעריכת/הוספת לקוח -->
-<div id="customer-modal" class="m365-modal" style="display:none;">
-    <div class="m365-modal-content">
+<div id="customer-modal" class="m365-modal kbbm-modal-overlay" style="display:none;">
+    <div class="m365-modal-content kbbm-modal">
         <span class="m365-modal-close">&times;</span>
         <h3 id="customer-modal-title">הוסף לקוח חדש</h3>
         <form id="customer-form">
@@ -157,24 +164,24 @@
 
             <div class="form-group">
                 <label>מספר לקוח:</label>
-                <input type="text" id="customer-number" name="customer_number" placeholder="ימולא אוטומטית לאחר הרצת הסקריפט">
+                <input type="text" id="customer-number" name="customer_number">
             </div>
-            
+
             <div class="form-group">
                 <label>שם לקוח:</label>
-                <input type="text" id="customer-name" name="customer_name" placeholder="ימולא אוטומטית לאחר הרצת הסקריפט">
+                <input type="text" id="customer-name" name="customer_name">
             </div>
-            
+
             <div class="form-group">
                 <label>Tenant ID:</label>
-                <input type="text" id="customer-tenant-id" name="tenant_id" placeholder="ימולא אוטומטית לאחר הרצת הסקריפט">
+                <input type="text" id="customer-tenant-id" name="tenant_id">
             </div>
-            
+
             <div class="form-group">
                 <label>Client ID:</label>
                 <input type="text" id="customer-client-id" name="client_id">
             </div>
-            
+
             <div class="form-group">
                 <label>Client Secret:</label>
                 <input type="password" id="customer-client-secret" name="client_secret">
