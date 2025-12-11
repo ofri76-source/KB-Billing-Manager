@@ -468,11 +468,14 @@ jQuery(document).ready(function($) {
     $('#generate-api-script').on('click', function() {
         const customerId = $('#api-customer-select').val();
         const downloadBase = $('#api-customer-select').data('download-base') || '';
+        const button = $(this);
 
         if (!customerId) {
             alert('בחר לקוח');
             return;
         }
+
+        button.prop('disabled', true).text('יוצר סקריפט...');
 
         $.post(m365Ajax.ajaxurl, {
             action: 'kbbm_generate_script',
@@ -483,22 +486,41 @@ jQuery(document).ready(function($) {
                 const data = response.data;
                 $('#kbbm-script-preview').val(data.script);
                 $('#kbbm-script-modal').fadeIn();
-                $('#kbbm-download-script').attr('href', data.download_url || (downloadBase + customerId));
+                $('#api-script-output').show();
+                $('#api-script-text').val(data.script);
+                $('#download-api-script, #kbbm-download-script').attr('href', data.download_url || (downloadBase + customerId));
                 $('#kbbm-tenant-id').text(data.tenant_id || '');
                 $('#kbbm-client-id').text(data.client_id || '');
                 $('#kbbm-client-secret').text(data.client_secret || '');
                 $('#kbbm-tenant-domain').text(data.tenant_domain || '');
             } else if (response && typeof response.script === 'string') {
                 $('#kbbm-script-preview').val(response.script);
+                $('#api-script-output').show();
+                $('#api-script-text').val(response.script);
                 $('#kbbm-script-modal').fadeIn();
-                $('#kbbm-download-script').attr('href', downloadBase + customerId);
+                $('#kbbm-download-script, #download-api-script').attr('href', downloadBase + customerId);
             } else {
                 const message = response && response.data && response.data.message ? response.data.message : 'לא ניתן ליצור סקריפט עבור הלקוח הנבחר';
                 alert(message);
             }
         }).fail(function() {
             alert('שגיאה ביצירת הסקריפט');
+        }).always(function() {
+            button.prop('disabled', false).text('צור סקריפט');
         });
+    });
+
+    // פתיחה/סגירה של פירוט לקוחות בדף הראשי
+    $(document).on('click', '.kbbm-main-row', function() {
+        const targetId = $(this).data('target');
+        const details = $('#' + targetId);
+
+        if (!details.length) {
+            return;
+        }
+
+        $(this).toggleClass('open');
+        details.slideToggle(200);
     });
 
     // העתקת סקריפט API
