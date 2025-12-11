@@ -9,6 +9,11 @@ class M365_LM_Admin {
         add_action('wp_ajax_m365_save_customer', array($this, 'ajax_save_customer'));
         add_action('wp_ajax_m365_delete_customer', array($this, 'ajax_delete_customer'));
         add_action('wp_ajax_m365_get_customer', array($this, 'ajax_get_customer'));
+        add_action('wp_ajax_kbbm_save_customer', array($this, 'ajax_save_customer'));
+        add_action('wp_ajax_kbbm_delete_customer', array($this, 'ajax_delete_customer'));
+        add_action('wp_ajax_kbbm_get_customer', array($this, 'ajax_get_customer'));
+        add_action('wp_ajax_kbbm_generate_script', array($this, 'ajax_generate_script'));
+        add_action('wp_ajax_nopriv_kbbm_generate_script', array($this, 'ajax_generate_script'));
     }
     
     // הוספת תפריט ניהול
@@ -61,7 +66,8 @@ class M365_LM_Admin {
         wp_enqueue_script('m365-lm-admin-script', M365_LM_PLUGIN_URL . 'assets/script.js', array('jquery'), M365_LM_VERSION, true);
         wp_localize_script('m365-lm-admin-script', 'm365Ajax', array(
             'ajaxurl' => admin_url('admin-ajax.php'),
-            'nonce' => wp_create_nonce('m365_nonce')
+            'nonce' => wp_create_nonce('m365_nonce'),
+            'dcCustomers' => M365_LM_Database::get_dc_customers(),
         ));
     }
     
@@ -69,8 +75,9 @@ class M365_LM_Admin {
     public function admin_page() {
         $licenses = M365_LM_Database::get_licenses();
         $customers = M365_LM_Database::get_customers();
+        $active = 'main';
         ?>
-        <div class="wrap">
+        <div class="wrap kbbm-wrap">
             <h1>ניהול רישיונות Microsoft 365</h1>
             <?php include M365_LM_PLUGIN_DIR . 'templates/main-page.php'; ?>
         </div>
@@ -80,8 +87,10 @@ class M365_LM_Admin {
     // עמוד לקוחות
     public function customers_page() {
         $customers = M365_LM_Database::get_customers();
+        $license_types = M365_LM_Database::get_license_types();
+        $active = 'settings';
         ?>
-        <div class="wrap">
+        <div class="wrap kbbm-wrap">
             <h1>ניהול לקוחות</h1>
             <?php include M365_LM_PLUGIN_DIR . 'templates/settings.php'; ?>
         </div>
@@ -94,8 +103,9 @@ class M365_LM_Admin {
         $deleted_licenses = array_filter($deleted_licenses, function($license) {
             return $license->is_deleted == 1;
         });
+        $active = 'recycle';
         ?>
-        <div class="wrap">
+        <div class="wrap kbbm-wrap">
             <h1>סל מחזור</h1>
             <?php include M365_LM_PLUGIN_DIR . 'templates/recycle-bin.php'; ?>
         </div>
@@ -106,7 +116,7 @@ class M365_LM_Admin {
     public function api_settings_page() {
         $customers = M365_LM_Database::get_customers();
         ?>
-        <div class="wrap">
+        <div class="wrap kbbm-wrap">
             <h1>הגדרות API</h1>
             <div class="m365-lm-container">
                 <div class="m365-section">
@@ -115,22 +125,25 @@ class M365_LM_Admin {
                     
                     <div class="form-group">
                         <label>בחר לקוח:</label>
-                        <select id="api-customer-select">
+                        <select id="api-customer-select" data-download-base="<?php echo esc_url(admin_url('admin-post.php?action=kbbm_download_script&customer_id=')); ?>">
                             <option value="">בחר לקוח</option>
                             <?php foreach ($customers as $customer): ?>
-                                <option value="<?php echo esc_attr($customer->tenant_domain); ?>">
-                                    <?php echo esc_html($customer->customer_name); ?>
+                                <option value="<?php echo esc_attr($customer->id); ?>">
+                                    <?php echo esc_html($customer->customer_name); ?> (<?php echo esc_html($customer->customer_number); ?>)
                                 </option>
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    
+
                     <button id="generate-api-script" class="button button-primary">צור סקריפט</button>
-                    
+
                     <div id="api-script-output" style="display:none; margin-top: 20px;">
                         <h4>סקריפט PowerShell:</h4>
                         <textarea id="api-script-text" readonly style="width: 100%; height: 400px; font-family: monospace; direction: ltr; text-align: left;"></textarea>
-                        <button id="copy-api-script" class="button button-secondary">העתק ללוח</button>
+                        <div class="form-actions" style="margin-top:10px;">
+                            <button id="copy-api-script" class="button button-secondary" type="button">העתק ללוח</button>
+                            <a id="download-api-script" class="button" href="#" target="_blank" rel="noreferrer">הורד סקריפט</a>
+                        </div>
                     </div>
                     
                     <div class="m365-info-box" style="margin-top: 20px;">
@@ -197,7 +210,7 @@ class M365_LM_Admin {
     // AJAX - מחיקת לקוח
     public function ajax_delete_customer() {
         check_ajax_referer('m365_nonce', 'nonce');
-        
+
         if (!current_user_can('manage_options')) {
             wp_send_json_error(array('message' => 'אין הרשאה'));
         }
@@ -216,7 +229,7 @@ class M365_LM_Admin {
             wp_send_json_error(array('message' => 'לא ניתן למחוק לקוח עם רישיונות קיימים'));
         }
         
-        $table_customers = $wpdb->prefix . 'm365_customers';
+        $table_customers = M365_LM_Database::get_customers_table_name();
         $result = $wpdb->delete($table_customers, array('id' => $customer_id));
         
         if ($result) {
@@ -225,4 +238,249 @@ class M365_LM_Admin {
             wp_send_json_error(array('message' => 'שגיאה במחיקת הלקוח'));
         }
     }
+
+    // AJAX - יצירת סקריפט PowerShell מותאם ללקוח
+    public function ajax_generate_script() {
+        check_ajax_referer('m365_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'אין הרשאה'));
+        }
+
+        $customer_id = intval($_POST['customer_id']);
+        $customer    = M365_LM_Database::get_customer($customer_id);
+        if (!$customer) {
+            wp_send_json_error(array('message' => 'לקוח לא נמצא'));
+        }
+
+        if (empty($customer->tenant_domain)) {
+            wp_send_json_error(array('message' => 'חסר Tenant Domain ללקוח'));
+        }
+
+        $script = kbbm_generate_ps_script($customer_id);
+
+        if (!$script) {
+            wp_send_json_error(array('message' => 'לא ניתן ליצור סקריפט עבור הלקוח'));
+        }
+
+        $download_url = add_query_arg(
+            array(
+                'action'      => 'kbbm_download_script',
+                'customer_id' => $customer_id,
+            ),
+            admin_url('admin-post.php')
+        );
+
+        wp_send_json_success(array(
+            'script'         => $script,
+            'download_url'   => esc_url_raw($download_url),
+            'tenant_id'      => $customer->tenant_id ?? '',
+            'client_id'      => $customer->client_id ?? '',
+            'client_secret'  => $customer->client_secret ?? '',
+            'tenant_domain'  => $customer->tenant_domain ?? '',
+        ));
+    }
+}
+
+/**
+ * יצירת סקריפט PowerShell מותאם ללקוח שנבחר
+ */
+function kbbm_generate_ps_script($customer_id) {
+    global $wpdb;
+
+    $table = M365_LM_Database::get_customers_table_name();
+    $row   = $wpdb->get_row(
+        $wpdb->prepare(
+            "SELECT customer_number, customer_name, tenant_domain, tenant_id, client_id, client_secret FROM {$table} WHERE id = %d",
+            $customer_id
+        ),
+        ARRAY_A
+    );
+
+    if (!$row) {
+        return '';
+    }
+
+    $customer_number = sanitize_text_field($row['customer_number'] ?? '');
+    $customer_name   = sanitize_text_field($row['customer_name'] ?? '');
+    $tenant_domain   = sanitize_text_field($row['tenant_domain'] ?? '');
+    $tenant_id       = sanitize_text_field($row['tenant_id'] ?? '');
+    $client_id       = sanitize_text_field($row['client_id'] ?? '');
+    $client_secret   = sanitize_text_field($row['client_secret'] ?? '');
+
+    if (empty($tenant_domain)) {
+        return '';
+    }
+
+    $ps_template = <<<'PS'
+<#
+KB Billing Manager Setup Script
+Customer: {{CUSTOMER_NAME}} ({{CUSTOMER_NUMBER}})
+Tenant Domain: {{TENANT_DOMAIN}}
+Tenant ID: {{TENANT_ID}}
+Client ID: {{CLIENT_ID}}
+Client Secret: {{CLIENT_SECRET}}
+#>
+
+param(
+    [string]$TenantDomain = "{{TENANT_DOMAIN}}"
+)
+
+$TenantId     = "{{TENANT_ID}}"
+$ClientId     = "{{CLIENT_ID}}"
+$ClientSecret = "{{CLIENT_SECRET}}"
+
+$ErrorActionPreference = "Stop"
+$ProgressPreference    = "SilentlyContinue"
+
+Write-Host "Starting KB Billing Manager setup for tenant $TenantDomain" -ForegroundColor Cyan
+
+function Write-Section {
+    param([string]$Text)
+    Write-Host "`n==================================" -ForegroundColor DarkGray
+    Write-Host $Text -ForegroundColor Cyan
+    Write-Host "==================================" -ForegroundColor DarkGray
+}
+
+Add-Type -AssemblyName System.Web
+
+# Validate required inputs
+if (-not $TenantDomain) {
+    throw "Tenant Domain is required."
+}
+
+# 1) Device code authentication
+$scope = "https://graph.microsoft.com/.default offline_access openid profile"
+$deviceCodeResponse = Invoke-RestMethod -Method Post -Uri "https://login.microsoftonline.com/organizations/oauth2/v2.0/devicecode" -Body @{ 
+    client_id = "04f0c124-f2bc-4f59-9b20-131aac8c363c" 
+    scope     = $scope 
+}
+
+Write-Section "Authenticate"
+Write-Host $deviceCodeResponse.message -ForegroundColor Yellow
+
+$token       = $null
+$endTime     = (Get-Date).AddMinutes(5)
+$tokenEndpoint = "https://login.microsoftonline.com/organizations/oauth2/v2.0/token"
+while (-not $token -and (Get-Date) -lt $endTime) {
+    Start-Sleep -Seconds [int]$deviceCodeResponse.interval
+    try {
+        $token = Invoke-RestMethod -Method Post -Uri $tokenEndpoint -Body @{
+            grant_type = "urn:ietf:params:oauth:grant-type:device_code"
+            client_id  = "04f0c124-f2bc-4f59-9b20-131aac8c363c"
+            device_code = $deviceCodeResponse.device_code
+            scope      = $scope
+        }
+    } catch {
+        $err = $_.ErrorDetails.Message
+        if ($err -and $err -match "authorization_pending") {
+            continue
+        }
+        throw
+    }
+}
+
+if (-not $token) {
+    throw "No token received. Please restart and approve within 5 minutes."
+}
+
+$headers = @{ Authorization = "Bearer $($token.access_token)" }
+
+# 3) Resolve tenant id
+$org = Invoke-RestMethod -Method Get -Uri "https://graph.microsoft.com/v1.0/organization" -Headers $headers
+$tenantId = $org.value[0].id
+
+# 4) Find or create the application
+$displayName = "KB Billing Manager - $TenantDomain"
+$filter      = [System.Web.HttpUtility]::UrlEncode("displayName eq '$displayName'")
+$lookupUri   = "https://graph.microsoft.com/v1.0/applications?`$filter=$filter"
+$existingApp = Invoke-RestMethod -Method Get -Uri $lookupUri -Headers $headers
+
+if ($existingApp.value.Count -gt 0) {
+    $app = $existingApp.value[0]
+    Write-Host "Found existing app registration: $displayName" -ForegroundColor Green
+} else {
+    $resourceAppId = "00000003-0000-0000-c000-000000000000" # Microsoft Graph
+    $requiredRoles = @(
+        @{ id = "7ab1d382-f21e-4acd-a863-ba3e13f7da61"; type = "Role" },  # Directory.Read.All
+        @{ id = "498476ce-e0fe-48b0-b801-37ba7e2685c6"; type = "Role" }   # Organization.Read.All
+    )
+
+    $appPayload = @{
+        displayName          = $displayName
+        signInAudience       = "AzureADMyOrg"
+        requiredResourceAccess = @(
+            @{ resourceAppId = $resourceAppId; resourceAccess = $requiredRoles }
+        )
+    } | ConvertTo-Json -Depth 5
+
+    $app = Invoke-RestMethod -Method Post -Uri "https://graph.microsoft.com/v1.0/applications" -Headers ($headers + @{ "Content-Type" = "application/json" }) -Body $appPayload
+    Write-Host "Created app registration: $displayName" -ForegroundColor Green
+}
+
+# 5) Ensure service principal exists
+$spLookup = Invoke-RestMethod -Method Get -Uri "https://graph.microsoft.com/v1.0/servicePrincipals?`$filter=appId eq '$($app.appId)'" -Headers $headers
+if ($spLookup.value.Count -gt 0) {
+    $sp = $spLookup.value[0]
+} else {
+    $sp = Invoke-RestMethod -Method Post -Uri "https://graph.microsoft.com/v1.0/servicePrincipals" -Headers ($headers + @{ "Content-Type" = "application/json" }) -Body (@{ appId = $app.appId } | ConvertTo-Json)
+    Write-Host "Created service principal" -ForegroundColor Green
+}
+
+# 6) Create 2-year client secret
+$endDate = (Get-Date).AddYears(2).ToString("yyyy-MM-ddTHH:mm:ssZ")
+$secretPayload = @{ passwordCredential = @{ displayName = "KBBM Auto Generated"; endDateTime = $endDate } } | ConvertTo-Json
+$secret = Invoke-RestMethod -Method Post -Uri "https://graph.microsoft.com/v1.0/applications/$($app.id)/addPassword" -Headers ($headers + @{ "Content-Type" = "application/json" }) -Body $secretPayload
+
+Write-Section "KB Billing Manager App Details"
+Write-Host "Customer: {{CUSTOMER_NAME}} ({{CUSTOMER_NUMBER}})" -ForegroundColor White
+Write-Host "Tenant Domain: $TenantDomain" -ForegroundColor White
+Write-Host "Tenant ID: $tenantId" -ForegroundColor White
+Write-Host "Client ID: $($app.appId)" -ForegroundColor White
+Write-Host "Client Secret: $($secret.secretText)" -ForegroundColor White
+Write-Host "Secret valid until: $endDate" -ForegroundColor White
+
+Write-Host "`nStored values in plugin:" -ForegroundColor Yellow
+Write-Host "Tenant ID (DB): $TenantId" -ForegroundColor Yellow
+Write-Host "Client ID  (DB): $ClientId" -ForegroundColor Yellow
+Write-Host "Client Secret (DB): $ClientSecret" -ForegroundColor Yellow
+
+Write-Host "`nNext steps:" -ForegroundColor Yellow
+Write-Host "1) In Azure Portal, open App Registrations > $displayName" -ForegroundColor Yellow
+Write-Host "2) Go to API Permissions and grant admin consent" -ForegroundColor Yellow
+Write-Host "3) Copy Tenant ID, Client ID, and Client Secret into the KB Billing Manager plugin" -ForegroundColor Yellow
+Write-Host "Setup complete." -ForegroundColor Green
+PS;
+
+    $script = str_replace(
+        array('{{CUSTOMER_NAME}}', '{{CUSTOMER_NUMBER}}', '{{TENANT_DOMAIN}}', '{{TENANT_ID}}', '{{CLIENT_ID}}', '{{CLIENT_SECRET}}'),
+        array($customer_name, $customer_number, $tenant_domain, $tenant_id, $client_id, $client_secret),
+        $ps_template
+    );
+
+    return $script;
+}
+/**
+ * Handler להורדת קובץ הסקריפט ללקוח
+ */
+function kbbm_download_script_handler() {
+    if (!current_user_can('manage_options')) {
+        wp_die('No permission');
+    }
+
+    $customer_id = intval($_GET['customer_id'] ?? 0);
+    if (!$customer_id) {
+        wp_die('No customer selected');
+    }
+
+    $script = kbbm_generate_ps_script($customer_id);
+
+    if (empty($script)) {
+        wp_die('Customer not found');
+    }
+
+    header('Content-Type: application/octet-stream');
+    header('Content-Disposition: attachment; filename="KBBM-Setup-' . $customer_id . '.ps1"');
+    echo $script;
+    exit;
 }

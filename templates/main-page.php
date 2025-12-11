@@ -1,4 +1,15 @@
 <div class="m365-lm-container">
+    <?php
+        $main_url     = 'https://kb.macomp.co.il/?page_id=14296';
+        $recycle_url  = 'https://kb.macomp.co.il/?page_id=14291';
+        $settings_url = 'https://kb.macomp.co.il/?page_id=14292';
+        $active       = isset($active) ? $active : '';
+    ?>
+    <div class="m365-nav-links">
+        <a href="<?php echo esc_url($main_url); ?>" class="<?php echo $active === 'main' ? 'active' : ''; ?>">ראשי</a>
+        <a href="<?php echo esc_url($recycle_url); ?>" class="<?php echo $active === 'recycle' ? 'active' : ''; ?>">סל מחזור</a>
+        <a href="<?php echo esc_url($settings_url); ?>" class="<?php echo $active === 'settings' ? 'active' : ''; ?>">הגדרות</a>
+    </div>
     <div class="m365-header">
         <h2>ניהול רישיונות Microsoft 365</h2>
         <div class="m365-actions">
@@ -23,40 +34,44 @@
                 <tr>
                     <th><div class="vertical-header"><span>מספר לקוח</span></div></th>
                     <th><div class="vertical-header"><span>שם לקוח</span></div></th>
+                    <th><div class="vertical-header"><span>SKU</span></div></th>
                     <th><div class="vertical-header"><span>שם תוכנית</span></div></th>
+                    <th><div class="vertical-header"><span>יחידות זמינות</span></div></th>
+                    <th><div class="vertical-header"><span>יחידות בשימוש</span></div></th>
+                    <th><div class="vertical-header"><span>סטטוס</span></div></th>
                     <th><div class="vertical-header"><span>עלות</span></div></th>
                     <th><div class="vertical-header"><span>מחיר</span></div></th>
-                    <th><div class="vertical-header"><span>כמות</span></div></th>
-                    <th><div class="vertical-header"><span>חיוב ח\ש</span></div></th>
-                    <th><div class="vertical-header"><span>מחזור חיוב</span></div></th>
                     <th><div class="vertical-header"><span>פעולות</span></div></th>
                 </tr>
             </thead>
             <tbody>
                 <?php if (empty($licenses)): ?>
                     <tr>
-                        <td colspan="9" class="no-data">אין רישיונות להצגה. בצע סנכרון ראשוני.</td>
+                        <td colspan="10" class="no-data">אין רישיונות להצגה. בצע סנכרון ראשוני.</td>
                     </tr>
                 <?php else: ?>
                     <?php foreach ($licenses as $license): ?>
-                        <tr data-id="<?php echo $license->id; ?>">
+                        <tr
+                            data-id="<?php echo $license->id; ?>"
+                            data-enabled="<?php echo esc_attr($license->enabled_units); ?>"
+                            data-consumed="<?php echo esc_attr($license->consumed_units); ?>"
+                            data-status="<?php echo esc_attr($license->status_text); ?>"
+                            data-billing-cycle="<?php echo esc_attr($license->billing_cycle); ?>"
+                            data-billing-frequency="<?php echo esc_attr($license->billing_frequency); ?>"
+                            data-quantity="<?php echo esc_attr($license->quantity); ?>"
+                        >
                             <td><?php echo esc_html($license->customer_number); ?></td>
                             <td><?php echo esc_html($license->customer_name); ?></td>
+                            <td><?php echo esc_html($license->sku_id); ?></td>
                             <td class="plan-name"><?php echo esc_html($license->plan_name); ?></td>
+                            <td><?php echo intval($license->enabled_units); ?></td>
+                            <td><?php echo intval($license->consumed_units); ?></td>
+                            <td><?php echo esc_html($license->status_text); ?></td>
                             <td class="editable" data-field="cost_price">
                                 <?php echo number_format($license->cost_price, 2); ?>
                             </td>
                             <td class="editable" data-field="selling_price">
                                 <?php echo number_format($license->selling_price, 2); ?>
-                            </td>
-                            <td class="editable" data-field="quantity">
-                                <?php echo $license->quantity; ?>
-                            </td>
-                            <td class="editable" data-field="billing_cycle">
-                                <?php echo $license->billing_cycle === 'monthly' ? 'חודשי' : 'שנתי'; ?>
-                            </td>
-                            <td class="editable" data-field="billing_frequency">
-                                <?php echo esc_html($license->billing_frequency); ?>
                             </td>
                             <td class="actions">
                                 <button class="m365-btn m365-btn-small edit-license" data-id="<?php echo $license->id; ?>">
