@@ -82,8 +82,9 @@ class M365_LM_Shortcodes {
 
         $skus = $api->get_subscribed_skus();
         if (empty($skus['success'])) {
-            M365_LM_Database::update_connection_status($customer_id, 'failed', $skus['message'] ?? 'Graph error');
-            wp_send_json_error(array('message' => 'Graph error: ' . ($skus['message'] ?? 'Unknown error')));
+            $message = $skus['message'] ?? 'Graph error';
+            M365_LM_Database::update_connection_status($customer_id, 'failed', $message);
+            wp_send_json_error(array('message' => 'Graph error: ' . $message));
         }
 
         $licenses_saved = 0;
@@ -93,10 +94,13 @@ class M365_LM_Shortcodes {
                 'sku_id'           => $sku['sku_id'],
                 'plan_name'        => $sku['plan_name'],
                 'quantity'         => $sku['enabled_units'],
+                'enabled_units'    => $sku['enabled_units'],
+                'consumed_units'   => $sku['consumed_units'],
                 'billing_cycle'    => 'monthly',
                 'billing_frequency'=> '1',
                 'cost_price'       => 0,
                 'selling_price'    => 0,
+                'status_text'      => $sku['status'] ?? '',
             );
 
             M365_LM_Database::upsert_license_by_sku($customer_id, $sku['sku_id'], $data);

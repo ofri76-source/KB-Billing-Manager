@@ -68,7 +68,7 @@
                                 <td><?php echo esc_html(substr($tenant_id, 0, 20)) . (strlen($tenant_id) > 20 ? '...' : ''); ?></td>
                                 <td><?php echo esc_html(substr($client_id, 0, 20)) . (strlen($client_id) > 20 ? '...' : ''); ?></td>
                                 <td>
-                                    <span class="connection-status <?php echo esc_attr($status_class); ?>" title="<?php echo esc_attr($status_msg); ?>">
+                                    <span id="connection-status-<?php echo esc_attr($customer->id); ?>" class="connection-status <?php echo esc_attr($status_class); ?>" title="<?php echo esc_attr($status_msg); ?>">
                                         <?php echo esc_html($status_label); ?>
                                     </span>
                                     <?php if (!empty($status_time)): ?>
@@ -169,6 +169,35 @@
                     </tbody>
                 </table>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal לתצוגת סקריפט -->
+<div id="kbbm-script-modal" class="kbbm-modal-overlay" style="display:none;">
+    <div class="m365-modal-content kbbm-modal">
+        <span class="m365-modal-close">&times;</span>
+        <h3>סקריפט PowerShell מותאם</h3>
+
+        <div class="kbbm-script-meta">
+            <div class="meta-box">
+                <span class="meta-label">Tenant ID</span>
+                <span id="kbbm-tenant-id"></span>
+            </div>
+            <div class="meta-box">
+                <span class="meta-label">Client ID</span>
+                <span id="kbbm-client-id"></span>
+            </div>
+            <div class="meta-box">
+                <span class="meta-label">Client Secret</span>
+                <span id="kbbm-client-secret"></span>
+            </div>
+        </div>
+
+        <textarea id="kbbm-script-preview" readonly style="width:100%; height:300px; font-family: monospace; direction:ltr; text-align:left;"></textarea>
+        <div class="form-actions" style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
+            <button id="kbbm-copy-script" class="m365-btn m365-btn-secondary" type="button">Copy Script</button>
+            <a id="kbbm-download-script" class="m365-btn m365-btn-primary" href="#" target="_blank" rel="noreferrer">Download Script</a>
         </div>
     </div>
 </div>

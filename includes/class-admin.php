@@ -249,8 +249,27 @@ class M365_LM_Admin {
 
         $customer_id = intval($_POST['customer_id']);
         $script      = kbbm_generate_ps_script($customer_id);
+        $customer    = M365_LM_Database::get_customer($customer_id);
 
-        wp_send_json(array('script' => $script));
+        if (!$script || !$customer) {
+            wp_send_json_error(array('message' => 'לא ניתן ליצור סקריפט עבור הלקוח'));
+        }
+
+        $download_url = add_query_arg(
+            array(
+                'action'      => 'kbbm_download_script',
+                'customer_id' => $customer_id,
+            ),
+            admin_url('admin-post.php')
+        );
+
+        wp_send_json_success(array(
+            'script'         => $script,
+            'download_url'   => esc_url_raw($download_url),
+            'tenant_id'      => $customer->tenant_id ?? '',
+            'client_id'      => $customer->client_id ?? '',
+            'client_secret'  => $customer->client_secret ?? '',
+        ));
     }
 }
 

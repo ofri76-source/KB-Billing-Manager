@@ -53,7 +53,12 @@ class M365_LM_API_Connector {
             $error_msg = $body['error'];
         }
 
-        return array('success' => false, 'message' => $error_msg);
+        return array(
+            'success' => false,
+            'message' => $error_msg,
+            'code'    => $code,
+            'body'    => $body,
+        );
     }
 
     // בדיקת תקינות החיבור לגרף
@@ -122,7 +127,7 @@ class M365_LM_API_Connector {
         if ($code === 200 && isset($body['value'])) {
             $parsed = $this->parse_skus($body['value']);
             if (empty($parsed)) {
-                return array('success' => false, 'message' => 'No SKUs returned from Graph');
+                return array('success' => false, 'message' => 'Graph returned 0 SKUs');
             }
 
             return array('success' => true, 'skus' => $parsed);
@@ -133,7 +138,7 @@ class M365_LM_API_Connector {
             $error_msg = $body['error']['message'];
         }
 
-        return array('success' => false, 'message' => $error_msg);
+        return array('success' => false, 'message' => $error_msg, 'code' => $code, 'body' => $body);
     }
     
     // עיבוד נתוני SKU
@@ -142,12 +147,13 @@ class M365_LM_API_Connector {
         
         foreach ($skus as $sku) {
             $result[] = array(
-                'sku_id' => $sku['skuId'] ?? '',
-                'plan_name' => $sku['skuPartNumber'] ?? 'Unknown',
-                'consumed_units' => $sku['consumedUnits'] ?? 0,
-                'enabled_units' => $sku['prepaidUnits']['enabled'] ?? 0,
+                'sku_id'          => $sku['skuId'] ?? '',
+                'plan_name'       => $sku['skuPartNumber'] ?? 'Unknown',
+                'consumed_units'  => $sku['consumedUnits'] ?? 0,
+                'enabled_units'   => $sku['prepaidUnits']['enabled'] ?? 0,
                 'suspended_units' => $sku['prepaidUnits']['suspended'] ?? 0,
-                'service_plans' => $sku['servicePlans'] ?? array()
+                'status'          => $sku['capabilityStatus'] ?? '',
+                'service_plans'   => $sku['servicePlans'] ?? array()
             );
         }
         

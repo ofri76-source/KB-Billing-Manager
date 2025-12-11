@@ -5,14 +5,14 @@ jQuery(document).ready(function($) {
     // סנכרון רישיונות
     $('#sync-licenses').on('click', function() {
         const customerId = $('#customer-select').val();
-        
+
         if (!customerId) {
             showMessage('error', 'בחר לקוח לסנכרון');
             return;
         }
-        
+
         $(this).prop('disabled', true).text('מסנכרן...');
-        
+
         $.ajax({
             url: m365Ajax.ajaxurl,
             type: 'POST',
@@ -23,7 +23,9 @@ jQuery(document).ready(function($) {
             },
             success: function(response) {
                 if (response.success) {
-                    showMessage('success', (response.data.message || 'סנכרון הושלם בהצלחה') + ' - ' + (response.data.count || 0) + ' רישיונות');
+                    const msg = response.data && response.data.message ? response.data.message : 'סנכרון הושלם בהצלחה';
+                    const count = response.data && typeof response.data.count !== 'undefined' ? response.data.count : 0;
+                    showMessage('success', `${msg} - ${count} רישיונות`);
                     setTimeout(function() {
                         location.reload();
                     }, 2000);
@@ -51,11 +53,11 @@ jQuery(document).ready(function($) {
         $('#license-plan-name').val(row.find('.plan-name').text());
         $('#license-cost').val(row.find('[data-field="cost_price"]').text().trim());
         $('#license-selling').val(row.find('[data-field="selling_price"]').text().trim());
-        $('#license-quantity').val(row.find('[data-field="quantity"]').text().trim());
-        
-        const billingCycle = row.find('[data-field="billing_cycle"]').text().trim() === 'חודשי' ? 'monthly' : 'yearly';
+        $('#license-quantity').val(row.data('enabled') || row.data('quantity') || 0);
+
+        const billingCycle = row.data('billing-cycle') || 'monthly';
         $('#license-billing-cycle').val(billingCycle);
-        $('#license-billing-frequency').val(row.find('[data-field="billing_frequency"]').text().trim());
+        $('#license-billing-frequency').val(row.data('billing-frequency') || '');
         
         $('#edit-license-modal').fadeIn();
     });
@@ -330,8 +332,7 @@ jQuery(document).ready(function($) {
 
         const btn = $(this);
         const id = btn.data('id');
-        const row = btn.closest('tr');
-        const statusEl = row.find('.connection-status');
+        const statusEl = $(`#connection-status-${id}`);
 
         if (!id) return;
 
@@ -380,7 +381,7 @@ jQuery(document).ready(function($) {
         });
     });
 
-    // יצירת סקריפט API
+    // יצירת סקריפט API + תצוגה במודאל
     $('#generate-api-script').on('click', function() {
         const customerId = $('#api-customer-select').val();
         const downloadBase = $('#api-customer-select').data('download-base') || '';
@@ -395,10 +396,18 @@ jQuery(document).ready(function($) {
             nonce: m365Ajax.nonce,
             customer_id: customerId
         }, function(response) {
-            if (response && typeof response.script === 'string') {
-                $('#api-script-text').val(response.script);
-                $('#api-script-output').slideDown();
-                $('#download-api-script').attr('href', downloadBase + customerId);
+            if (response && response.success && response.data && typeof response.data.script === 'string') {
+                const data = response.data;
+                $('#kbbm-script-preview').val(data.script);
+                $('#kbbm-script-modal').fadeIn();
+                $('#kbbm-download-script').attr('href', data.download_url || (downloadBase + customerId));
+                $('#kbbm-tenant-id').text(data.tenant_id || '');
+                $('#kbbm-client-id').text(data.client_id || '');
+                $('#kbbm-client-secret').text(data.client_secret || '');
+            } else if (response && typeof response.script === 'string') { // תאימות לאחור
+                $('#kbbm-script-preview').val(response.script);
+                $('#kbbm-script-modal').fadeIn();
+                $('#kbbm-download-script').attr('href', downloadBase + customerId);
             } else {
                 alert('לא ניתן ליצור סקריפט עבור הלקוח הנבחר');
             }
@@ -406,18 +415,19 @@ jQuery(document).ready(function($) {
     });
 
     // העתקת סקריפט API
-    $('#copy-api-script').on('click', function() {
-        const scriptText = $('#api-script-text').val();
+    $('#kbbm-copy-script, #copy-api-script').on('click', function() {
+        const scriptText = $('#kbbm-script-preview').val() || $('#api-script-text').val();
 
         if (navigator.clipboard && scriptText) {
             navigator.clipboard.writeText(scriptText).then(() => {
-                $('#copy-api-script').text('הועתק!').prop('disabled', true);
+                $('#kbbm-copy-script, #copy-api-script').text('הועתק!').prop('disabled', true);
                 setTimeout(function() {
+                    $('#kbbm-copy-script').text('Copy Script').prop('disabled', false);
                     $('#copy-api-script').text('העתק ללוח').prop('disabled', false);
                 }, 2000);
             });
         } else {
-            const textArea = $('#api-script-text');
+            const textArea = $('#kbbm-script-preview').length ? $('#kbbm-script-preview') : $('#api-script-text');
             textArea.trigger('select');
             document.execCommand('copy');
         }
@@ -425,12 +435,12 @@ jQuery(document).ready(function($) {
     
     // סגירת Modal
     $('.m365-modal-close, .m365-modal-cancel').on('click', function() {
-        $(this).closest('.m365-modal').fadeOut();
+        $(this).closest('.m365-modal, .kbbm-modal-overlay').fadeOut();
     });
     
     // סגירת Modal בלחיצה על הרקע
-    $('.m365-modal').on('click', function(e) {
-        if ($(e.target).hasClass('m365-modal')) {
+    $('.m365-modal, .kbbm-modal-overlay').on('click', function(e) {
+        if ($(e.target).hasClass('m365-modal') || $(e.target).hasClass('kbbm-modal-overlay')) {
             $(this).fadeOut();
         }
     });
