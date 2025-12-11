@@ -248,10 +248,18 @@ class M365_LM_Admin {
         }
 
         $customer_id = intval($_POST['customer_id']);
-        $script      = kbbm_generate_ps_script($customer_id);
         $customer    = M365_LM_Database::get_customer($customer_id);
+        if (!$customer) {
+            wp_send_json_error(array('message' => 'לקוח לא נמצא'));
+        }
 
-        if (!$script || !$customer) {
+        if (empty($customer->tenant_domain)) {
+            wp_send_json_error(array('message' => 'חסר Tenant Domain ללקוח'));
+        }
+
+        $script = kbbm_generate_ps_script($customer_id);
+
+        if (!$script) {
             wp_send_json_error(array('message' => 'לא ניתן ליצור סקריפט עבור הלקוח'));
         }
 
@@ -269,6 +277,7 @@ class M365_LM_Admin {
             'tenant_id'      => $customer->tenant_id ?? '',
             'client_id'      => $customer->client_id ?? '',
             'client_secret'  => $customer->client_secret ?? '',
+            'tenant_domain'  => $customer->tenant_domain ?? '',
         ));
     }
 }
@@ -282,7 +291,7 @@ function kbbm_generate_ps_script($customer_id) {
     $table = M365_LM_Database::get_customers_table_name();
     $row   = $wpdb->get_row(
         $wpdb->prepare(
-            "SELECT customer_number, customer_name, tenant_domain FROM {$table} WHERE id = %d",
+            "SELECT customer_number, customer_name, tenant_domain, tenant_id, client_id, client_secret FROM {$table} WHERE id = %d",
             $customer_id
         ),
         ARRAY_A
@@ -295,16 +304,31 @@ function kbbm_generate_ps_script($customer_id) {
     $customer_number = sanitize_text_field($row['customer_number'] ?? '');
     $customer_name   = sanitize_text_field($row['customer_name'] ?? '');
     $tenant_domain   = sanitize_text_field($row['tenant_domain'] ?? '');
+    $tenant_id       = sanitize_text_field($row['tenant_id'] ?? '');
+    $client_id       = sanitize_text_field($row['client_id'] ?? '');
+    $client_secret   = sanitize_text_field($row['client_secret'] ?? '');
+
+    if (empty($tenant_domain)) {
+        return '';
+    }
 
     $ps_template = <<<'PS'
 <#
 KB Billing Manager Setup Script
 Customer: {{CUSTOMER_NAME}} ({{CUSTOMER_NUMBER}})
+Tenant Domain: {{TENANT_DOMAIN}}
+Tenant ID: {{TENANT_ID}}
+Client ID: {{CLIENT_ID}}
+Client Secret: {{CLIENT_SECRET}}
 #>
 
 param(
     [string]$TenantDomain = "{{TENANT_DOMAIN}}"
 )
+
+$TenantId     = "{{TENANT_ID}}"
+$ClientId     = "{{CLIENT_ID}}"
+$ClientSecret = "{{CLIENT_SECRET}}"
 
 $ErrorActionPreference = "Stop"
 $ProgressPreference    = "SilentlyContinue"
@@ -320,27 +344,30 @@ function Write-Section {
 
 Add-Type -AssemblyName System.Web
 
-# 1) Acquire device code
-$clientId = "04f0c124-f2bc-4f1a-af72-7e29a4e4b007"
-$scope    = "https://graph.microsoft.com/.default offline_access"
-$deviceCodeResponse = Invoke-RestMethod -Method Post -Uri "https://login.microsoftonline.com/organizations/oauth2/v2.0/devicecode" -Body @{ client_id = $clientId; scope = $scope }
+# Validate required inputs
+if (-not $TenantDomain) {
+    throw "Tenant Domain is required."
+}
 
-Write-Section "Authorize this session"
-Write-Host "To continue, open the following URL and enter the code below:" -ForegroundColor Yellow
-Write-Host $deviceCodeResponse.verification_uri -ForegroundColor Green
-Write-Host "Code: $($deviceCodeResponse.user_code)" -ForegroundColor Green
-Write-Host "Waiting up to 5 minutes for authentication..." -ForegroundColor Yellow
+# 1) Device code authentication
+$scope = "https://graph.microsoft.com/.default offline_access openid profile"
+$deviceCodeResponse = Invoke-RestMethod -Method Post -Uri "https://login.microsoftonline.com/organizations/oauth2/v2.0/devicecode" -Body @{ 
+    client_id = "04f0c124-f2bc-4f59-9b20-131aac8c363c" 
+    scope     = $scope 
+}
 
-# 2) Poll for token up to 5 minutes
-$token = $null
-$endTime = (Get-Date).AddMinutes(5)
+Write-Section "Authenticate"
+Write-Host $deviceCodeResponse.message -ForegroundColor Yellow
+
+$token       = $null
+$endTime     = (Get-Date).AddMinutes(5)
 $tokenEndpoint = "https://login.microsoftonline.com/organizations/oauth2/v2.0/token"
 while (-not $token -and (Get-Date) -lt $endTime) {
     Start-Sleep -Seconds [int]$deviceCodeResponse.interval
     try {
         $token = Invoke-RestMethod -Method Post -Uri $tokenEndpoint -Body @{
             grant_type = "urn:ietf:params:oauth:grant-type:device_code"
-            client_id  = $clientId
+            client_id  = "04f0c124-f2bc-4f59-9b20-131aac8c363c"
             device_code = $deviceCodeResponse.device_code
             scope      = $scope
         }
@@ -379,7 +406,7 @@ if ($existingApp.value.Count -gt 0) {
         @{ id = "498476ce-e0fe-48b0-b801-37ba7e2685c6"; type = "Role" }   # Organization.Read.All
     )
 
-    $appPayload = @{ 
+    $appPayload = @{
         displayName          = $displayName
         signInAudience       = "AzureADMyOrg"
         requiredResourceAccess = @(
@@ -413,6 +440,11 @@ Write-Host "Client ID: $($app.appId)" -ForegroundColor White
 Write-Host "Client Secret: $($secret.secretText)" -ForegroundColor White
 Write-Host "Secret valid until: $endDate" -ForegroundColor White
 
+Write-Host "`nStored values in plugin:" -ForegroundColor Yellow
+Write-Host "Tenant ID (DB): $TenantId" -ForegroundColor Yellow
+Write-Host "Client ID  (DB): $ClientId" -ForegroundColor Yellow
+Write-Host "Client Secret (DB): $ClientSecret" -ForegroundColor Yellow
+
 Write-Host "`nNext steps:" -ForegroundColor Yellow
 Write-Host "1) In Azure Portal, open App Registrations > $displayName" -ForegroundColor Yellow
 Write-Host "2) Go to API Permissions and grant admin consent" -ForegroundColor Yellow
@@ -421,8 +453,8 @@ Write-Host "Setup complete." -ForegroundColor Green
 PS;
 
     $script = str_replace(
-        array('{{CUSTOMER_NAME}}', '{{CUSTOMER_NUMBER}}', '{{TENANT_DOMAIN}}'),
-        array($customer_name, $customer_number, $tenant_domain),
+        array('{{CUSTOMER_NAME}}', '{{CUSTOMER_NUMBER}}', '{{TENANT_DOMAIN}}', '{{TENANT_ID}}', '{{CLIENT_ID}}', '{{CLIENT_SECRET}}'),
+        array($customer_name, $customer_number, $tenant_domain, $tenant_id, $client_id, $client_secret),
         $ps_template
     );
 

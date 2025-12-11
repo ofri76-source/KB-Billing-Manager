@@ -50,7 +50,11 @@ class M365_LM_API_Connector {
         if (isset($body['error_description'])) {
             $error_msg = $body['error_description'];
         } elseif (isset($body['error'])) {
-            $error_msg = $body['error'];
+            $error_msg = is_array($body['error']) && isset($body['error']['message']) ? $body['error']['message'] : $body['error'];
+        }
+
+        if (!empty($code)) {
+            $error_msg = sprintf('%s (HTTP %s)', $error_msg, $code);
         }
 
         return array(
@@ -136,6 +140,12 @@ class M365_LM_API_Connector {
         $error_msg = 'No SKU data found';
         if (!empty($body['error']['message'])) {
             $error_msg = $body['error']['message'];
+        } elseif (!empty($body['error_description'])) {
+            $error_msg = $body['error_description'];
+        }
+
+        if (!empty($code)) {
+            $error_msg = sprintf('HTTP %s: %s', $code, $error_msg);
         }
 
         return array('success' => false, 'message' => $error_msg, 'code' => $code, 'body' => $body);

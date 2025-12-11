@@ -232,7 +232,7 @@
     position: fixed;
     z-index: 99999 !important;
     left: 0;
-    top: 0;
+    top: 0 !important;
     width: 100vw;
     height: 100vh;
     background-color: rgba(0,0,0,0.5);
@@ -251,6 +251,10 @@
     overflow-y: auto;
     box-shadow: 0 4px 8px rgba(0,0,0,0.2);
     z-index: 100000 !important;
+}
+
+.kbbm-modal {
+    margin-top: 40px;
 }
 
 .kbbm-script-meta {

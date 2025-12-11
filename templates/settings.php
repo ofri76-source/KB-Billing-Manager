@@ -106,7 +106,7 @@
                     <option value="">בחר לקוח</option>
                     <?php foreach ($customers as $customer): ?>
                         <option value="<?php echo esc_attr($customer->id); ?>">
-                            <?php echo esc_html($customer->customer_name); ?> (<?php echo esc_html($customer->customer_number); ?>)
+                            <?php echo esc_html($customer->customer_number); ?> - <?php echo esc_html($customer->customer_name); ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
@@ -191,6 +191,10 @@
             <div class="meta-box">
                 <span class="meta-label">Client Secret</span>
                 <span id="kbbm-client-secret"></span>
+            </div>
+            <div class="meta-box">
+                <span class="meta-label">Tenant Domain</span>
+                <span id="kbbm-tenant-domain"></span>
             </div>
         </div>
 

@@ -395,7 +395,7 @@ jQuery(document).ready(function($) {
             action: 'kbbm_generate_script',
             nonce: m365Ajax.nonce,
             customer_id: customerId
-        }, function(response) {
+        }).done(function(response) {
             if (response && response.success && response.data && typeof response.data.script === 'string') {
                 const data = response.data;
                 $('#kbbm-script-preview').val(data.script);
@@ -404,13 +404,17 @@ jQuery(document).ready(function($) {
                 $('#kbbm-tenant-id').text(data.tenant_id || '');
                 $('#kbbm-client-id').text(data.client_id || '');
                 $('#kbbm-client-secret').text(data.client_secret || '');
-            } else if (response && typeof response.script === 'string') { // תאימות לאחור
+                $('#kbbm-tenant-domain').text(data.tenant_domain || '');
+            } else if (response && typeof response.script === 'string') {
                 $('#kbbm-script-preview').val(response.script);
                 $('#kbbm-script-modal').fadeIn();
                 $('#kbbm-download-script').attr('href', downloadBase + customerId);
             } else {
-                alert('לא ניתן ליצור סקריפט עבור הלקוח הנבחר');
+                const message = response && response.data && response.data.message ? response.data.message : 'לא ניתן ליצור סקריפט עבור הלקוח הנבחר';
+                alert(message);
             }
+        }).fail(function() {
+            alert('שגיאה ביצירת הסקריפט');
         });
     });
 
