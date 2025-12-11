@@ -14,6 +14,7 @@ class M365_LM_Admin {
         add_action('wp_ajax_kbbm_get_customer', array($this, 'ajax_get_customer'));
         add_action('wp_ajax_kbbm_generate_script', array($this, 'ajax_generate_script'));
         add_action('wp_ajax_nopriv_kbbm_generate_script', array($this, 'ajax_generate_script'));
+        add_action('wp_ajax_kbbm_save_settings', array($this, 'ajax_save_settings'));
     }
     
     // הוספת תפריט ניהול
@@ -89,6 +90,7 @@ class M365_LM_Admin {
         $customers = M365_LM_Database::get_customers();
         $license_types = M365_LM_Database::get_license_types();
         $active = 'settings';
+        $log_retention_days = M365_LM_Database::get_log_retention_days();
         ?>
         <div class="wrap kbbm-wrap">
             <h1>ניהול לקוחות</h1>
@@ -279,6 +281,24 @@ class M365_LM_Admin {
             'client_secret'  => $customer->client_secret ?? '',
             'tenant_domain'  => $customer->tenant_domain ?? '',
         ));
+    }
+
+    public function ajax_save_settings() {
+        check_ajax_referer('m365_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'אין הרשאה'));
+        }
+
+        $retention_days = isset($_POST['log_retention_days']) ? intval($_POST['log_retention_days']) : 120;
+        $retention_days = $retention_days > 0 ? $retention_days : 120;
+
+        update_option('kbbm_log_retention_days', $retention_days);
+
+        // בצע ניקוי מיידי בהתאם לערך המעודכן
+        M365_LM_Database::prune_logs($retention_days);
+
+        wp_send_json_success(array('message' => 'ההגדרות נשמרו בהצלחה', 'log_retention_days' => $retention_days));
     }
 }
 
