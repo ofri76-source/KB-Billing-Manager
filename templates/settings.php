@@ -1,9 +1,15 @@
 <div class="m365-lm-container">
+    <?php
+        $main_url       = 'https://kb.macomp.co.il/?page_id=14296';
+        $recycle_url    = 'https://kb.macomp.co.il/?page_id=14291';
+        $settings_url   = 'https://kb.macomp.co.il/?page_id=14292';
+        $active         = isset($active) ? $active : '';
+        $license_types  = isset($license_types) ? $license_types : array();
+    ?>
     <div class="m365-nav-links">
-        <a class="m365-btn m365-btn-secondary" href="https://kb.macomp.co.il/?page_id=14296">ראשי</a>
-        <a class="m365-btn m365-btn-secondary" href="https://kb.macomp.co.il/?page_id=14291">סל מחזור</a>
-        <a class="m365-btn m365-btn-secondary active" href="https://kb.macomp.co.il/?page_id=14292">הגדרות</a>
-        <a class="m365-btn m365-btn-success" href="https://kb.macomp.co.il/?page_id=14292#customers-table">לקוח חדש</a>
+        <a href="<?php echo esc_url($main_url); ?>" class="<?php echo $active === 'main' ? 'active' : ''; ?>">ראשי</a>
+        <a href="<?php echo esc_url($recycle_url); ?>" class="<?php echo $active === 'recycle' ? 'active' : ''; ?>">סל מחזור</a>
+        <a href="<?php echo esc_url($settings_url); ?>" class="<?php echo $active === 'settings' ? 'active' : ''; ?>">הגדרות</a>
     </div>
     <div class="m365-header">
         <h2>הגדרות</h2>
@@ -18,7 +24,7 @@
     <div class="m365-tab-content active" id="customers-tab">
         <div class="m365-section">
             <h3>לקוחות רשומים</h3>
-            <button id="add-customer" class="m365-btn m365-btn-primary">הוסף לקוח חדש</button>
+            <button id="add-customer" class="m365-btn m365-btn-success">הוסף לקוח חדש</button>
             
             <table id="customers-table" class="m365-table" style="margin-top: 20px;">
                 <thead>
@@ -94,6 +100,41 @@
                     <li>עדכן את פרטי הלקוח בטאב "ניהול לקוחות"</li>
                     <li>אשר את ההרשאות ב-Azure Portal</li>
                 </ol>
+            </div>
+        </div>
+        <div class="m365-section">
+            <h3>סוגי רישיונות</h3>
+            <div class="m365-table-wrapper">
+                <table class="m365-table">
+                    <thead>
+                        <tr>
+                            <th>SKU</th>
+                            <th>שם רישיון</th>
+                            <th>מחיר עלות</th>
+                            <th>מחיר מכירה</th>
+                            <th>סוג חיוב</th>
+                            <th>תדירות</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (!empty($license_types)) : ?>
+                            <?php foreach ($license_types as $type) : ?>
+                                <tr>
+                                    <td><?php echo esc_html($type->sku); ?></td>
+                                    <td><?php echo esc_html($type->name); ?></td>
+                                    <td><?php echo esc_html($type->cost_price); ?></td>
+                                    <td><?php echo esc_html($type->selling_price); ?></td>
+                                    <td><?php echo esc_html($type->billing_cycle); ?></td>
+                                    <td><?php echo esc_html($type->billing_frequency); ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php else : ?>
+                            <tr>
+                                <td colspan="6" class="no-data">אין סוגי רישיונות מוגדרים</td>
+                            </tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>

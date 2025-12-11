@@ -37,6 +37,28 @@
     margin-bottom: 15px;
 }
 
+.m365-nav-links a {
+    display: inline-block;
+    padding: 8px 16px;
+    border-radius: 4px;
+    text-decoration: none;
+    border: 1px solid #ddd;
+    background: #f3f2f1;
+    color: #323130;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.m365-nav-links a:hover {
+    background: #e1dfdd;
+}
+
+.m365-nav-links a.active {
+    background: #0078d4;
+    color: #fff;
+    border-color: #0078d4;
+}
+
 /* כפתורים */
 .m365-btn {
     padding: 10px 20px;
@@ -201,12 +223,16 @@
 
 .m365-modal-content {
     background-color: #fff;
-    margin: 10% auto 5%;
+    position: relative;
+    top: 50%;
+    transform: translateY(-50%);
+    margin: 0 auto;
     padding: 30px;
     border-radius: 8px;
     width: 90%;
     max-width: 600px;
-    position: relative;
+    max-height: 90vh;
+    overflow-y: auto;
     box-shadow: 0 4px 8px rgba(0,0,0,0.2);
 }
 

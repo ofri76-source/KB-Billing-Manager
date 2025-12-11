@@ -29,6 +29,7 @@ class M365_LM_Shortcodes {
     // דף ראשי
     public function main_page($atts) {
         ob_start();
+        $active = 'main';
         $licenses = M365_LM_Database::get_licenses();
         $customers = M365_LM_Database::get_customers();
         include M365_LM_PLUGIN_DIR . 'templates/main-page.php';
@@ -38,6 +39,7 @@ class M365_LM_Shortcodes {
     // סל מחזור
     public function recycle_bin($atts) {
         ob_start();
+        $active = 'recycle';
         $deleted_licenses = M365_LM_Database::get_licenses(true);
         $deleted_licenses = array_filter($deleted_licenses, function($license) {
             return $license->is_deleted == 1;
@@ -49,7 +51,9 @@ class M365_LM_Shortcodes {
     // הגדרות
     public function settings_page($atts) {
         ob_start();
+        $active = 'settings';
         $customers = M365_LM_Database::get_customers();
+        $license_types = M365_LM_Database::get_license_types();
         include M365_LM_PLUGIN_DIR . 'templates/settings.php';
         return ob_get_clean();
     }

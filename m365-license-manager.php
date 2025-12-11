@@ -22,12 +22,17 @@ require_once M365_LM_PLUGIN_DIR . 'includes/class-shortcodes.php';
 require_once M365_LM_PLUGIN_DIR . 'includes/class-admin.php';
 
 // הפעלה והסרה
-register_activation_hook(__FILE__, 'm365_lm_activate');
+register_activation_hook(__FILE__, 'kb_billing_manager_activate');
 register_deactivation_hook(__FILE__, 'm365_lm_deactivate');
 
-function m365_lm_activate() {
+function kb_billing_manager_activate() {
     M365_LM_Database::create_tables();
     flush_rewrite_rules();
+}
+
+// שמירה על תאימות לאחור
+function m365_lm_activate() {
+    kb_billing_manager_activate();
 }
 
 function m365_lm_deactivate() {
