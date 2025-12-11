@@ -10,6 +10,7 @@
         <a href="<?php echo esc_url($main_url); ?>" class="<?php echo $active === 'main' ? 'active' : ''; ?>">ראשי</a>
         <a href="<?php echo esc_url($recycle_url); ?>" class="<?php echo $active === 'recycle' ? 'active' : ''; ?>">סל מחזור</a>
         <a href="<?php echo esc_url($settings_url); ?>" class="<?php echo $active === 'settings' ? 'active' : ''; ?>">הגדרות</a>
+            <a href="<?php echo esc_url($logs_url); ?>" class="<?php echo $active === 'logs' ? 'active' : ''; ?>">לוגים</a>
     </div>
     <div class="m365-header">
         <h2>הגדרות</h2>
@@ -206,12 +207,10 @@
     </div>
 </div>
 
-<!-- Modal לעריכת/הוספת לקוח -->
-<div id="customer-modal" class="m365-modal kbbm-modal-overlay" style="display:none;">
-    <div class="m365-modal-content kbbm-modal">
-        <span class="m365-modal-close">&times;</span>
-        <h3 id="customer-modal-title">הוסף לקוח חדש</h3>
-        <form id="customer-form">
+<!-- טופס הוספה/עריכת לקוח (תצוגה בעמוד, ללא פופאפ) -->
+<div id="customer-form-wrapper" class="kbbm-customer-form">
+    <h3 id="customer-modal-title">הוסף לקוח חדש</h3>
+    <form id="customer-form">
             <input type="hidden" id="customer-id" name="id">
 
             <div class="form-group customer-lookup">
