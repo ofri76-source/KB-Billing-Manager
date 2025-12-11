@@ -285,185 +285,460 @@ class M365_LM_Admin {
 /**
  * יצירת סקריפט PowerShell מותאם ללקוח שנבחר
  */
-function kbbm_generate_ps_script($customer_id) {
-    global $wpdb;
 
-    $table = M365_LM_Database::get_customers_table_name();
-    $row   = $wpdb->get_row(
-        $wpdb->prepare(
-            "SELECT customer_number, customer_name, tenant_domain, tenant_id, client_id, client_secret FROM {$table} WHERE id = %d",
-            $customer_id
-        ),
-        ARRAY_A
-    );
+    function kbbm_generate_ps_script($customer_id) {
+        global $wpdb;
 
-    if (!$row) {
-        return '';
-    }
+        $table = M365_LM_Database::get_customers_table_name();
+        $row   = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT customer_number, customer_name, tenant_domain FROM {$table} WHERE id = %d",
+                $customer_id
+            ),
+            ARRAY_A
+        );
 
-    $customer_number = sanitize_text_field($row['customer_number'] ?? '');
-    $customer_name   = sanitize_text_field($row['customer_name'] ?? '');
-    $tenant_domain   = sanitize_text_field($row['tenant_domain'] ?? '');
-    $tenant_id       = sanitize_text_field($row['tenant_id'] ?? '');
-    $client_id       = sanitize_text_field($row['client_id'] ?? '');
-    $client_secret   = sanitize_text_field($row['client_secret'] ?? '');
+        if (!$row) {
+            return '';
+        }
 
-    if (empty($tenant_domain)) {
-        return '';
-    }
+        $customer_number = isset($row['customer_number']) ? $row['customer_number'] : '';
+        $customer_name   = isset($row['customer_name']) ? $row['customer_name'] : '';
+        $tenant_domain   = !empty($row['tenant_domain']) ? $row['tenant_domain'] : 'contoso.onmicrosoft.com';
 
-    $ps_template = <<<'PS'
+        $ps_template = <<<'PS'
 <#
-KB Billing Manager Setup Script
-Customer: {{CUSTOMER_NAME}} ({{CUSTOMER_NUMBER}})
-Tenant Domain: {{TENANT_DOMAIN}}
-Tenant ID: {{TENANT_ID}}
-Client ID: {{CLIENT_ID}}
-Client Secret: {{CLIENT_SECRET}}
+KBBM-Setup.ps1
+KB Billing Manager – Full setup via Device Code + Graph REST
+
+Customer: {{CUSTOMER_NUMBER}} {{CUSTOMER_NAME}}
+Tenant Domain (from plugin): {{TENANT_DOMAIN}}
+
+What this script does:
+1. If run in Windows PowerShell:
+   - Finds or installs PowerShell 7 (pwsh) silently.
+   - Re-runs itself in PowerShell 7.
+2. If run in PowerShell 7:
+   - Performs Device Code auth against Microsoft identity platform using the Microsoft Graph CLI public client.
+   - Fetches Tenant ID + initial verified domain.
+   - Ensures an app registration "KB Billing Manager - <TenantDomain>" exists with Directory.Read.All + Organization.Read.All app roles.
+   - Ensures a Service Principal exists.
+   - Grants admin consent for those app roles (appRoleAssignments) on Microsoft Graph.
+   - Creates a client secret (valid for 2 years).
+   - Prints Tenant ID, Client ID and Client Secret for use in the WordPress plugin.
 #>
 
 param(
     [string]$TenantDomain = "{{TENANT_DOMAIN}}"
 )
 
-$TenantId     = "{{TENANT_ID}}"
-$ClientId     = "{{CLIENT_ID}}"
-$ClientSecret = "{{CLIENT_SECRET}}"
+$ErrorActionPreference = 'Stop'
 
-$ErrorActionPreference = "Stop"
-$ProgressPreference    = "SilentlyContinue"
-
-Write-Host "Starting KB Billing Manager setup for tenant $TenantDomain" -ForegroundColor Cyan
-
-function Write-Section {
-    param([string]$Text)
-    Write-Host "`n==================================" -ForegroundColor DarkGray
+function Write-Section([string]$Text) {
+    Write-Host ""
+    Write-Host "==================================" -ForegroundColor Cyan
     Write-Host $Text -ForegroundColor Cyan
-    Write-Host "==================================" -ForegroundColor DarkGray
+    Write-Host "==================================" -ForegroundColor Cyan
 }
 
-Add-Type -AssemblyName System.Web
+# -------- PART 1: Bootstrap to PowerShell 7 if needed --------
 
-# Validate required inputs
-if (-not $TenantDomain) {
-    throw "Tenant Domain is required."
-}
+if ($PSVersionTable.PSEdition -ne 'Core') {
+    Write-Section "KB Billing Manager - Bootstrap (Windows PowerShell detected)"
 
-# 1) Device code authentication
-$scope = "https://graph.microsoft.com/.default offline_access openid profile"
-$deviceCodeResponse = Invoke-RestMethod -Method Post -Uri "https://login.microsoftonline.com/organizations/oauth2/v2.0/devicecode" -Body @{ 
-    client_id = "04f0c124-f2bc-4f59-9b20-131aac8c363c" 
-    scope     = $scope 
-}
+    $pwshCmd = Get-Command pwsh -ErrorAction SilentlyContinue
 
-Write-Section "Authenticate"
-Write-Host $deviceCodeResponse.message -ForegroundColor Yellow
+    if (-not $pwshCmd) {
+        Write-Host "PowerShell 7 (pwsh) not found. Downloading and installing..." -ForegroundColor Yellow
 
-$token       = $null
-$endTime     = (Get-Date).AddMinutes(5)
-$tokenEndpoint = "https://login.microsoftonline.com/organizations/oauth2/v2.0/token"
-while (-not $token -and (Get-Date) -lt $endTime) {
-    Start-Sleep -Seconds [int]$deviceCodeResponse.interval
-    try {
-        $token = Invoke-RestMethod -Method Post -Uri $tokenEndpoint -Body @{
-            grant_type = "urn:ietf:params:oauth:grant-type:device_code"
-            client_id  = "04f0c124-f2bc-4f59-9b20-131aac8c363c"
-            device_code = $deviceCodeResponse.device_code
-            scope      = $scope
+        $psVersion   = "7.4.2"
+        $msiFileName = "PowerShell-$psVersion-win-x64.msi"
+        $downloadUrl = "https://github.com/PowerShell/PowerShell/releases/download/v$psVersion/$msiFileName"
+        $msiPath     = Join-Path $env:TEMP $msiFileName
+
+        try {
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+            Invoke-WebRequest -Uri $downloadUrl -OutFile $msiPath
         }
-    } catch {
-        $err = $_.ErrorDetails.Message
-        if ($err -and $err -match "authorization_pending") {
-            continue
+        catch {
+            Write-Host "Failed to download PowerShell 7 MSI:" -ForegroundColor Red
+            Write-Host $_.Exception.Message -ForegroundColor Red
+            Write-Host "Install PowerShell 7 manually from https://github.com/PowerShell/PowerShell/releases/latest" -ForegroundColor Red
+            exit 1
         }
-        throw
+
+        try {
+            Write-Host "Installing PowerShell 7 silently..." -ForegroundColor Cyan
+            $arguments = "/i `"$msiPath`" /qn /norestart"
+            $process   = Start-Process -FilePath "msiexec.exe" -ArgumentList $arguments -Wait -PassThru
+            if ($process.ExitCode -ne 0) {
+                Write-Host "msiexec returned non-zero exit code: $($process.ExitCode)" -ForegroundColor Red
+                exit 1
+            }
+            $machinePath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+            $userPath    = [System.Environment]::GetEnvironmentVariable("Path", "User")
+            $env:PATH    = "$machinePath;$userPath"
+            if (Test-Path $msiPath) { Remove-Item $msiPath -Force }
+        }
+        catch {
+            Write-Host "Failed to install PowerShell 7 MSI:" -ForegroundColor Red
+            Write-Host $_.Exception.Message -ForegroundColor Red
+            exit 1
+        }
+
+        $pwshCmd = Get-Command pwsh -ErrorAction SilentlyContinue
+        if (-not $pwshCmd) {
+            Write-Host "PowerShell 7 still not found after installation." -ForegroundColor Red
+            exit 1
+        }
     }
+    else {
+        Write-Host "PowerShell 7 (pwsh) is already installed." -ForegroundColor Green
+    }
+
+    $scriptPath = $MyInvocation.MyCommand.Definition
+    $pwshPath   = $pwshCmd.Source
+
+    Write-Host "Opening a new PowerShell 7 window running this script..." -ForegroundColor Cyan
+
+    $argList = @('-NoExit','-File',"`"$scriptPath`"")
+    if ($TenantDomain) {
+        $argList += @('-TenantDomain', $TenantDomain)
+    }
+
+    Start-Process -FilePath $pwshPath -ArgumentList $argList
+    Write-Host "You can close this Windows PowerShell window." -ForegroundColor Yellow
+    exit 0
 }
 
-if (-not $token) {
-    throw "No token received. Please restart and approve within 5 minutes."
+# -------- PART 2: Device code (5 min) + Graph REST --------
+
+Write-Section "KB Billing Manager - Microsoft 365 Setup (Graph REST / PowerShell 7)"
+
+$ClientId       = "14d82eec-204b-4c2f-b7e8-296a70dab67e" # Microsoft Graph CLI public client
+$deviceEndpoint = "https://login.microsoftonline.com/organizations/oauth2/v2.0/devicecode"
+$tokenEndpoint  = "https://login.microsoftonline.com/organizations/oauth2/v2.0/token"
+
+# Scopes (delegated) – must allow creating app registrations, SPs and appRoleAssignments
+$scopes = @(
+    "https://graph.microsoft.com/Application.ReadWrite.All",
+    "https://graph.microsoft.com/Directory.Read.All",
+    "https://graph.microsoft.com/AppRoleAssignment.ReadWrite.All",
+    "offline_access",
+    "openid",
+    "profile"
+)
+$scopeString = ($scopes -join " ")
+
+Write-Host "Requesting device code from Microsoft identity platform..." -ForegroundColor Cyan
+
+$body = "client_id=$ClientId&scope=$([System.Uri]::EscapeDataString($scopeString))"
+$deviceResponse = Invoke-RestMethod -Method POST -Uri $deviceEndpoint `
+    -ContentType "application/x-www-form-urlencoded" -Body $body
+
+$userCode        = $deviceResponse.user_code
+$verificationUri = $deviceResponse.verification_uri
+$expiresIn       = [int]$deviceResponse.expires_in
+$interval        = [int]$deviceResponse.interval
+
+Write-Host ""
+Write-Host "To sign in, open:" -ForegroundColor Yellow
+Write-Host "  $verificationUri" -ForegroundColor Yellow
+Write-Host "and enter this code:" -ForegroundColor Yellow
+Write-Host "  $userCode" -ForegroundColor Green
+Write-Host ""
+
+Start-Process $verificationUri
+
+try {
+    Add-Type -AssemblyName System.Windows.Forms
+    Add-Type -AssemblyName System.Drawing
+    [System.Windows.Forms.Application]::EnableVisualStyles()
+
+    $form              = New-Object System.Windows.Forms.Form
+    $form.Text         = "KB Billing Manager - Device Login"
+    $form.StartPosition = "CenterScreen"
+    $form.Size         = New-Object System.Drawing.Size(420,220)
+    $form.TopMost      = $true
+
+    $labelInfo = New-Object System.Windows.Forms.Label
+    $labelInfo.Text = "1. בחלון הדפדפן, הדבק את הקוד." + [Environment]::NewLine +
+                      "2. השלם התחברות כולל MFA." + [Environment]::NewLine +
+                      "3. חזור לכאן ולחץ Continue."
+    $labelInfo.AutoSize = $true
+    $labelInfo.Location = New-Object System.Drawing.Point(15,15)
+    $form.Controls.Add($labelInfo)
+
+    $labelCode = New-Object System.Windows.Forms.Label
+    $labelCode.Text = "Device code:"
+    $labelCode.AutoSize = $true
+    $labelCode.Location = New-Object System.Drawing.Point(15,80)
+    $form.Controls.Add($labelCode)
+
+    $textCode = New-Object System.Windows.Forms.TextBox
+    $textCode.Text = $userCode
+    $textCode.ReadOnly = $true
+    $textCode.TextAlign = "Center"
+    $textCode.Width = 250
+    $textCode.Location = New-Object System.Drawing.Point(100,78)
+    $form.Controls.Add($textCode)
+
+    $btnCopy = New-Object System.Windows.Forms.Button
+    $btnCopy.Text = "Copy"
+    $btnCopy.Width = 80
+    $btnCopy.Location = New-Object System.Drawing.Point(360,76)
+    $btnCopy.Add_Click({
+        [System.Windows.Forms.Clipboard]::SetText($textCode.Text)
+        [System.Windows.Forms.MessageBox]::Show("Code copied to clipboard.","KB Billing Manager") | Out-Null
+    })
+    $form.Controls.Add($btnCopy)
+
+    $btnContinue = New-Object System.Windows.Forms.Button
+    $btnContinue.Text = "Continue"
+    $btnContinue.Width = 100
+    $btnContinue.Location = New-Object System.Drawing.Point(150,130)
+    $btnContinue.Add_Click({ $form.Close() })
+    $form.Controls.Add($btnContinue)
+
+    [void]$form.ShowDialog()
+}
+catch {
+    # ignore GUI issues (e.g. Server Core)
 }
 
-$headers = @{ Authorization = "Bearer $($token.access_token)" }
-
-# 3) Resolve tenant id
-$org = Invoke-RestMethod -Method Get -Uri "https://graph.microsoft.com/v1.0/organization" -Headers $headers
-$tenantId = $org.value[0].id
-
-# 4) Find or create the application
-$displayName = "KB Billing Manager - $TenantDomain"
-$filter      = [System.Web.HttpUtility]::UrlEncode("displayName eq '$displayName'")
-$lookupUri   = "https://graph.microsoft.com/v1.0/applications?`$filter=$filter"
-$existingApp = Invoke-RestMethod -Method Get -Uri $lookupUri -Headers $headers
-
-if ($existingApp.value.Count -gt 0) {
-    $app = $existingApp.value[0]
-    Write-Host "Found existing app registration: $displayName" -ForegroundColor Green
-} else {
-    $resourceAppId = "00000003-0000-0000-c000-000000000000" # Microsoft Graph
-    $requiredRoles = @(
-        @{ id = "7ab1d382-f21e-4acd-a863-ba3e13f7da61"; type = "Role" },  # Directory.Read.All
-        @{ id = "498476ce-e0fe-48b0-b801-37ba7e2685c6"; type = "Role" }   # Organization.Read.All
+function Get-DeviceToken {
+    param(
+        [Parameter(Mandatory=$true)] $DeviceResponse,
+        [Parameter(Mandatory=$true)] [string]$ClientId,
+        [int]$MaxWaitSeconds = 300
     )
 
-    $appPayload = @{
-        displayName          = $displayName
-        signInAudience       = "AzureADMyOrg"
+    $tokenEndpoint = "https://login.microsoftonline.com/organizations/oauth2/v2.0/token"
+    $elapsed = 0
+    $interval = [int]$DeviceResponse.interval
+    $limit = [Math]::Min($MaxWaitSeconds, [int]$DeviceResponse.expires_in)
+
+    while ($elapsed -lt $limit) {
+        try {
+            $body = "grant_type=urn:ietf:params:oauth:grant-type:device_code" +
+                    "&client_id=$ClientId" +
+                    "&device_code=$($DeviceResponse.device_code)"
+
+            $tokenResponse = Invoke-RestMethod -Method POST -Uri $tokenEndpoint `
+                -ContentType "application/x-www-form-urlencoded" -Body $body
+
+            return $tokenResponse
+        }
+        catch {
+            $errJson = $_.ErrorDetails.Message
+            if ($errJson -match '"error"\s*:\s*"authorization_pending"') {
+                Start-Sleep -Seconds $interval
+                $elapsed += $interval
+                continue
+            }
+            elseif ($errJson -match '"error"\s*:\s*"authorization_declined"') {
+                throw "User declined authentication."
+            }
+            elseif ($errJson -match '"error"\s*:\s*"expired_token"') {
+                throw "Device code expired."
+            }
+            else {
+                throw $_
+            }
+        }
+    }
+
+    throw "Timed out waiting for authentication after $limit seconds."
+}
+
+Write-Host "Waiting for authentication to complete (up to 5 minutes)..." -ForegroundColor Cyan
+$token = Get-DeviceToken -DeviceResponse $deviceResponse -ClientId $ClientId -MaxWaitSeconds 300
+Write-Host "Authentication successful." -ForegroundColor Green
+
+$accessToken = $token.access_token
+$graphBase   = "https://graph.microsoft.com/v1.0"
+$headers     = @{ Authorization = "Bearer $accessToken" }
+
+# --- Organization (tenant id + domain) ---
+
+try {
+    $org = Invoke-RestMethod -Uri "$graphBase/organization" -Headers $headers -Method GET
+    $orgObj = $org.value[0]
+    $tenantId = $orgObj.id
+
+    if (-not $TenantDomain -or $TenantDomain.Trim() -eq "") {
+        $TenantDomain = ($orgObj.verifiedDomains | Where-Object { $_.isInitial -eq $true }).name
+    }
+
+    Write-Host "Tenant ID:   $tenantId"    -ForegroundColor Green
+    Write-Host "TenantDomain: $TenantDomain" -ForegroundColor Green
+}
+catch {
+    Write-Host "Error getting organization details:" -ForegroundColor Red
+    Write-Host $_.Exception.Message -ForegroundColor Red
+    exit 1
+}
+
+# --- Application registration ---
+
+$appDisplayName   = "KB Billing Manager - $TenantDomain"
+$graphResourceId  = "00000003-0000-0000-c000-000000000000"
+$directoryReadAll = "7ab1d382-f21e-4acd-a863-ba3e13f7da61"
+$orgReadAll       = "498476ce-e0fe-48b0-b801-37ba7e2685c6"
+
+Write-Host "Ensuring application '$appDisplayName' exists..." -ForegroundColor Cyan
+
+$filter = "displayName eq '$appDisplayName'"
+$filterEncoded = [System.Uri]::EscapeDataString($filter)
+$appSearchUri = "$graphBase/applications?`$filter=$filterEncoded"
+
+$appSearch = Invoke-RestMethod -Uri $appSearchUri -Headers $headers -Method GET
+if ($appSearch.value.Count -gt 0) {
+    $app = $appSearch.value[0]
+    Write-Host "Existing application found." -ForegroundColor Yellow
+}
+else {
+    $appBody = @{
+        displayName = $appDisplayName
         requiredResourceAccess = @(
-            @{ resourceAppId = $resourceAppId; resourceAccess = $requiredRoles }
+            @{
+                resourceAppId  = $graphResourceId
+                resourceAccess = @(
+                    @{ id = $directoryReadAll; type = "Role" }
+                    @{ id = $orgReadAll;      type = "Role" }
+                )
+            }
         )
     } | ConvertTo-Json -Depth 5
 
-    $app = Invoke-RestMethod -Method Post -Uri "https://graph.microsoft.com/v1.0/applications" -Headers ($headers + @{ "Content-Type" = "application/json" }) -Body $appPayload
-    Write-Host "Created app registration: $displayName" -ForegroundColor Green
+    $app = Invoke-RestMethod -Uri "$graphBase/applications" -Headers $headers `
+        -Method POST -ContentType "application/json" -Body $appBody
+    Write-Host "App Registration created." -ForegroundColor Green
 }
 
-# 5) Ensure service principal exists
-$spLookup = Invoke-RestMethod -Method Get -Uri "https://graph.microsoft.com/v1.0/servicePrincipals?`$filter=appId eq '$($app.appId)'" -Headers $headers
-if ($spLookup.value.Count -gt 0) {
-    $sp = $spLookup.value[0]
-} else {
-    $sp = Invoke-RestMethod -Method Post -Uri "https://graph.microsoft.com/v1.0/servicePrincipals" -Headers ($headers + @{ "Content-Type" = "application/json" }) -Body (@{ appId = $app.appId } | ConvertTo-Json)
-    Write-Host "Created service principal" -ForegroundColor Green
+$appId       = $app.appId
+$appObjectId = $app.id
+
+# --- Service Principal ---
+
+Write-Host "Ensuring Service Principal exists..." -ForegroundColor Cyan
+$spSearchUri = "$graphBase/servicePrincipals?`$filter=appId eq '$appId'"
+$spSearch    = Invoke-RestMethod -Uri $spSearchUri -Headers $headers -Method GET
+
+if ($spSearch.value.Count -gt 0) {
+    $sp = $spSearch.value[0]
+    Write-Host "Service Principal already exists." -ForegroundColor Green
+}
+else {
+    $spBody = @{ appId = $appId } | ConvertTo-Json
+    $sp     = Invoke-RestMethod -Uri "$graphBase/servicePrincipals" -Headers $headers `
+        -Method POST -ContentType "application/json" -Body $spBody
+    Write-Host "Service Principal created." -ForegroundColor Green
 }
 
-# 6) Create 2-year client secret
-$endDate = (Get-Date).AddYears(2).ToString("yyyy-MM-ddTHH:mm:ssZ")
-$secretPayload = @{ passwordCredential = @{ displayName = "KBBM Auto Generated"; endDateTime = $endDate } } | ConvertTo-Json
-$secret = Invoke-RestMethod -Method Post -Uri "https://graph.microsoft.com/v1.0/applications/$($app.id)/addPassword" -Headers ($headers + @{ "Content-Type" = "application/json" }) -Body $secretPayload
+function Grant-GraphAppRoles {
+    param(
+        [Parameter(Mandatory=$true)] [string]$GraphBase,
+        [Parameter(Mandatory=$true)] $Headers,
+        [Parameter(Mandatory=$true)] [string]$ClientSpId,
+        [Parameter(Mandatory=$true)] [string]$GraphAppId,
+        [string[]]$RoleIds
+    )
 
-Write-Section "KB Billing Manager App Details"
-Write-Host "Customer: {{CUSTOMER_NAME}} ({{CUSTOMER_NUMBER}})" -ForegroundColor White
-Write-Host "Tenant Domain: $TenantDomain" -ForegroundColor White
-Write-Host "Tenant ID: $tenantId" -ForegroundColor White
-Write-Host "Client ID: $($app.appId)" -ForegroundColor White
-Write-Host "Client Secret: $($secret.secretText)" -ForegroundColor White
-Write-Host "Secret valid until: $endDate" -ForegroundColor White
+    Write-Section "Granting admin consent for Microsoft Graph application permissions"
 
-Write-Host "`nStored values in plugin:" -ForegroundColor Yellow
-Write-Host "Tenant ID (DB): $TenantId" -ForegroundColor Yellow
-Write-Host "Client ID  (DB): $ClientId" -ForegroundColor Yellow
-Write-Host "Client Secret (DB): $ClientSecret" -ForegroundColor Yellow
+    try {
+        $spGraph = Invoke-RestMethod -Uri "$GraphBase/servicePrincipals?`$filter=appId eq '$GraphAppId'" `
+                                     -Headers $Headers -Method GET
 
-Write-Host "`nNext steps:" -ForegroundColor Yellow
-Write-Host "1) In Azure Portal, open App Registrations > $displayName" -ForegroundColor Yellow
-Write-Host "2) Go to API Permissions and grant admin consent" -ForegroundColor Yellow
-Write-Host "3) Copy Tenant ID, Client ID, and Client Secret into the KB Billing Manager plugin" -ForegroundColor Yellow
-Write-Host "Setup complete." -ForegroundColor Green
+        if (-not $spGraph.value -or $spGraph.value.Count -eq 0) {
+            Write-Host "Could not find Microsoft Graph service principal in tenant." -ForegroundColor Yellow
+            return
+        }
+
+        $graphSpId = $spGraph.value[0].id
+
+        foreach ($roleId in $RoleIds) {
+            $body = @{
+                principalId = $ClientSpId
+                resourceId  = $graphSpId
+                appRoleId   = $roleId
+            } | ConvertTo-Json
+
+            try {
+                Invoke-RestMethod -Uri "$GraphBase/servicePrincipals/$ClientSpId/appRoleAssignments" `
+                    -Headers $Headers -Method POST -ContentType "application/json" -Body $body | Out-Null
+
+                Write-Host "Assigned Graph app role $roleId" -ForegroundColor Green
+            }
+            catch {
+                $msg = $_.Exception.Message
+                if ($msg -match "409" -or $msg -match "already exists") {
+                    Write-Host "Graph app role $roleId already assigned (already existed)." -ForegroundColor Yellow
+                }
+                else {
+                    Write-Host "Failed to assign Graph app role $roleId: $msg" -ForegroundColor Yellow
+                }
+            }
+        }
+
+        Write-Host "Admin consent for Graph roles finished." -ForegroundColor Green
+    }
+    catch {
+        Write-Host "Failed to grant admin consent programmatically. You can still press 'Grant admin consent' in the portal if needed." -ForegroundColor Yellow
+        Write-Host $_.Exception.Message -ForegroundColor DarkYellow
+    }
+}
+
+Grant-GraphAppRoles -GraphBase $graphBase `
+                    -Headers   $headers `
+                    -ClientSpId $sp.id `
+                    -GraphAppId $graphResourceId `
+                    -RoleIds @($directoryReadAll, $orgReadAll)
+
+# --- Client Secret (2 years) ---
+
+Write-Host "Creating new client secret (2 years)..." -ForegroundColor Cyan
+
+$pwdBody = @{
+    passwordCredential = @{
+        displayName = "KBBM"
+        endDateTime = (Get-Date).AddYears(2).ToString("o")
+    }
+} | ConvertTo-Json -Depth 5
+
+$pwdResp = Invoke-RestMethod -Uri "$graphBase/applications/$appObjectId/addPassword" `
+    -Headers $headers -Method POST -ContentType "application/json" -Body $pwdBody
+
+$clientSecret = $pwdResp.secretText
+
+Write-Section "Values to use in KB Billing Manager plugin"
+
+Write-Host ("Tenant ID:              {0}" -f $tenantId)       -ForegroundColor Yellow
+Write-Host ("Application (Client) ID: {0}" -f $appId)         -ForegroundColor Yellow
+Write-Host ("Client Secret:           {0}" -f $clientSecret)  -ForegroundColor Yellow
+
+Write-Section "Next steps"
+
+Write-Host "1. העתק שלושה ערכים אלו למסך ההגדרות של הלקוח בתוסף KB Billing Manager:" -ForegroundColor Cyan
+Write-Host "   - Tenant ID" -ForegroundColor Cyan
+Write-Host "   - Client ID (Application ID)" -ForegroundColor Cyan
+Write-Host "   - Client Secret" -ForegroundColor Cyan
+Write-Host "2. אין צורך ללחוץ ידנית על Grant admin consent – ההרשאות כבר הוקצו דרך הסקריפט (אם אושרה ההתחברות כ-Admin)." -ForegroundColor Cyan
+Write-Host "==================================" -ForegroundColor Cyan
 PS;
 
-    $script = str_replace(
-        array('{{CUSTOMER_NAME}}', '{{CUSTOMER_NUMBER}}', '{{TENANT_DOMAIN}}', '{{TENANT_ID}}', '{{CLIENT_ID}}', '{{CLIENT_SECRET}}'),
-        array($customer_name, $customer_number, $tenant_domain, $tenant_id, $client_id, $client_secret),
-        $ps_template
-    );
+        $script = str_replace(
+            array('{{TENANT_DOMAIN}}', '{{CUSTOMER_NUMBER}}', '{{CUSTOMER_NAME}}'),
+            array($tenant_domain, $customer_number, $customer_name),
+            $ps_template
+        );
 
-    return $script;
-}
-/**
- * Handler להורדת קובץ הסקריפט ללקוח
- */
-function kbbm_download_script_handler() {
+        return $script;
+    }
+
+
+    function kbbm_download_script_handler() {
     if (!current_user_can('manage_options')) {
         wp_die('No permission');
     }
