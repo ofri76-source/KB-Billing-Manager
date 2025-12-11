@@ -15,67 +15,130 @@ class M365_LM_API_Connector {
     }
     
     // קבלת Access Token
-    private function get_access_token() {
+    private function request_access_token() {
         if ($this->access_token) {
-            return $this->access_token;
+            return array('success' => true, 'token' => $this->access_token);
         }
-        
+
         $url = "https://login.microsoftonline.com/{$this->tenant_id}/oauth2/v2.0/token";
-        
+
         $body = array(
-            'client_id' => $this->client_id,
+            'client_id'     => $this->client_id,
             'client_secret' => $this->client_secret,
-            'scope' => 'https://graph.microsoft.com/.default',
-            'grant_type' => 'client_credentials'
+            'scope'         => 'https://graph.microsoft.com/.default',
+            'grant_type'    => 'client_credentials',
         );
-        
+
         $response = wp_remote_post($url, array(
-            'body' => $body,
-            'timeout' => 30
+            'body'    => $body,
+            'timeout' => 45,
         ));
-        
+
         if (is_wp_error($response)) {
-            return false;
+            return array('success' => false, 'message' => $response->get_error_message());
         }
-        
+
+        $code = wp_remote_retrieve_response_code($response);
         $body = json_decode(wp_remote_retrieve_body($response), true);
-        
-        if (isset($body['access_token'])) {
+
+        if ($code === 200 && isset($body['access_token'])) {
             $this->access_token = $body['access_token'];
-            return $this->access_token;
+            return array('success' => true, 'token' => $this->access_token);
         }
-        
-        return false;
+
+        $error_msg = 'Graph authentication failed';
+        if (isset($body['error_description'])) {
+            $error_msg = $body['error_description'];
+        } elseif (isset($body['error'])) {
+            $error_msg = $body['error'];
+        }
+
+        return array(
+            'success' => false,
+            'message' => $error_msg,
+            'code'    => $code,
+            'body'    => $body,
+        );
     }
-    
+
+    // בדיקת תקינות החיבור לגרף
+    public function test_connection() {
+        $token_response = $this->request_access_token();
+
+        if (!$token_response['success']) {
+            return array('success' => false, 'message' => $token_response['message']);
+        }
+
+        $token   = $token_response['token'];
+        $url     = 'https://graph.microsoft.com/v1.0/organization';
+        $headers = array(
+            'Authorization' => 'Bearer ' . $token,
+            'Content-Type'  => 'application/json',
+        );
+
+        $response = wp_remote_get($url, array(
+            'headers' => $headers,
+            'timeout' => 45,
+        ));
+
+        if (is_wp_error($response)) {
+            return array('success' => false, 'message' => $response->get_error_message());
+        }
+
+        $code = wp_remote_retrieve_response_code($response);
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+
+        if ($code === 200 && isset($body['value'][0]['id'])) {
+            return array('success' => true, 'message' => 'Connected', 'tenant_id' => $body['value'][0]['id']);
+        }
+
+        $error_msg = 'Graph error';
+        if (!empty($body['error']['message'])) {
+            $error_msg = $body['error']['message'];
+        }
+
+        return array('success' => false, 'message' => $error_msg);
+    }
+
     // משיכת רישיונות מ-Microsoft Graph API
     public function get_subscribed_skus() {
-        $token = $this->get_access_token();
-        if (!$token) {
-            return array('error' => 'Failed to get access token');
+        $token_response = $this->request_access_token();
+        if (!$token_response['success']) {
+            return array('success' => false, 'message' => $token_response['message']);
         }
-        
+
         $url = 'https://graph.microsoft.com/v1.0/subscribedSkus';
-        
+
         $response = wp_remote_get($url, array(
             'headers' => array(
-                'Authorization' => 'Bearer ' . $token,
+                'Authorization' => 'Bearer ' . $token_response['token'],
                 'Content-Type' => 'application/json'
             ),
-            'timeout' => 30
+            'timeout' => 45
         ));
-        
+
         if (is_wp_error($response)) {
-            return array('error' => $response->get_error_message());
+            return array('success' => false, 'message' => $response->get_error_message());
         }
-        
+
+        $code = wp_remote_retrieve_response_code($response);
         $body = json_decode(wp_remote_retrieve_body($response), true);
-        
-        if (isset($body['value'])) {
-            return $this->parse_skus($body['value']);
+
+        if ($code === 200 && isset($body['value'])) {
+            $parsed = $this->parse_skus($body['value']);
+            if (empty($parsed)) {
+                return array('success' => false, 'message' => 'Graph returned 0 SKUs');
+            }
+
+            return array('success' => true, 'skus' => $parsed);
         }
-        
-        return array('error' => 'No SKU data found');
+
+        $error_msg = 'No SKU data found';
+        if (!empty($body['error']['message'])) {
+            $error_msg = $body['error']['message'];
+        }
+
+        return array('success' => false, 'message' => $error_msg, 'code' => $code, 'body' => $body);
     }
     
     // עיבוד נתוני SKU
@@ -84,12 +147,13 @@ class M365_LM_API_Connector {
         
         foreach ($skus as $sku) {
             $result[] = array(
-                'sku_id' => $sku['skuId'] ?? '',
-                'plan_name' => $sku['skuPartNumber'] ?? 'Unknown',
-                'consumed_units' => $sku['consumedUnits'] ?? 0,
-                'enabled_units' => $sku['prepaidUnits']['enabled'] ?? 0,
+                'sku_id'          => $sku['skuId'] ?? '',
+                'plan_name'       => $sku['skuPartNumber'] ?? 'Unknown',
+                'consumed_units'  => $sku['consumedUnits'] ?? 0,
+                'enabled_units'   => $sku['prepaidUnits']['enabled'] ?? 0,
                 'suspended_units' => $sku['prepaidUnits']['suspended'] ?? 0,
-                'service_plans' => $sku['servicePlans'] ?? array()
+                'status'          => $sku['capabilityStatus'] ?? '',
+                'service_plans'   => $sku['servicePlans'] ?? array()
             );
         }
         

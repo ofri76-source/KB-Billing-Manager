@@ -2,12 +2,12 @@
 if (!defined('ABSPATH')) exit;
 
 class M365_LM_Database {
-    
+
     public static function create_tables() {
         global $wpdb;
         $charset_collate = $wpdb->get_charset_collate();
-        
-        // טבלת לקוחות
+
+        // טבלת לקוחות (ברירת מחדל קיימת)
         $table_customers = $wpdb->prefix . 'm365_customers';
         $sql_customers = "CREATE TABLE IF NOT EXISTS $table_customers (
             id bigint(20) NOT NULL AUTO_INCREMENT,
@@ -17,19 +17,44 @@ class M365_LM_Database {
             client_id varchar(255) DEFAULT NULL,
             client_secret text DEFAULT NULL,
             tenant_domain varchar(255) DEFAULT NULL,
+            last_connection_status varchar(20) DEFAULT 'unknown',
+            last_connection_message text DEFAULT NULL,
+            last_connection_time datetime DEFAULT NULL,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             UNIQUE KEY customer_number (customer_number)
         ) $charset_collate;";
-        
-        // טבלת רישיונות
+
+        // טבלת לקוחות חדשה עם סכימה מעודכנת
+        $kb_customers_table = $wpdb->prefix . 'kb_billing_customers';
+        $sql_kb_customers = "CREATE TABLE IF NOT EXISTS {$kb_customers_table} (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            customer_number varchar(50) DEFAULT NULL,
+            customer_name varchar(255) DEFAULT NULL,
+            tenant_id varchar(255) DEFAULT NULL,
+            client_id varchar(255) DEFAULT NULL,
+            client_secret text DEFAULT NULL,
+            tenant_domain varchar(255) DEFAULT NULL,
+            last_connection_status varchar(20) DEFAULT 'unknown',
+            last_connection_message text DEFAULT NULL,
+            last_connection_time datetime DEFAULT NULL,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY customer_number (customer_number)
+        ) {$charset_collate};";
+
+        // טבלת רישיונות קיימת
         $table_licenses = $wpdb->prefix . 'm365_licenses';
         $sql_licenses = "CREATE TABLE IF NOT EXISTS $table_licenses (
             id bigint(20) NOT NULL AUTO_INCREMENT,
             customer_id bigint(20) NOT NULL,
             sku_id varchar(255) NOT NULL,
             plan_name varchar(500) NOT NULL,
+            enabled_units int(11) NOT NULL DEFAULT 0,
+            consumed_units int(11) NOT NULL DEFAULT 0,
+            status_text varchar(100) DEFAULT NULL,
             cost_price decimal(10,2) NOT NULL DEFAULT 0,
             selling_price decimal(10,2) NOT NULL DEFAULT 0,
             quantity int(11) NOT NULL DEFAULT 0,
@@ -43,29 +68,69 @@ class M365_LM_Database {
             KEY customer_id (customer_id),
             KEY is_deleted (is_deleted)
         ) $charset_collate;";
-        
+
+        // טבלת רישיונות חדשה בשם kb_billing_licenses
+        $kb_licenses_table = $wpdb->prefix . 'kb_billing_licenses';
+        $sql_kb_licenses = "CREATE TABLE {$kb_licenses_table} (
+            id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+            customer_id BIGINT(20) UNSIGNED NOT NULL,
+            program_name VARCHAR(255) NOT NULL,
+            sku VARCHAR(150) DEFAULT '',
+            cost_price DECIMAL(10,2) DEFAULT 0,
+            selling_price DECIMAL(10,2) DEFAULT 0,
+            quantity INT(11) DEFAULT 0,
+            enabled_units INT(11) DEFAULT 0,
+            consumed_units INT(11) DEFAULT 0,
+            status_text varchar(100) DEFAULT NULL,
+            billing_cycle ENUM('monthly','yearly') DEFAULT 'monthly',
+            billing_frequency INT(11) DEFAULT 1,
+            is_deleted TINYINT(1) DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id),
+            KEY customer_program (customer_id, program_name)
+        ) {$charset_collate};";
+
+        // טבלת סוגי רישיונות (אופציונלית אך שימושית)
+        $types_table = $wpdb->prefix . 'kb_billing_license_types';
+        $sql_license_types = "CREATE TABLE {$types_table} (
+            id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+            sku VARCHAR(150) NOT NULL,
+            name VARCHAR(255) NOT NULL,
+            default_cost_price DECIMAL(10,2) DEFAULT 0,
+            default_selling_price DECIMAL(10,2) DEFAULT 0,
+            default_billing_cycle ENUM('monthly','yearly') DEFAULT 'monthly',
+            default_billing_frequency INT(11) DEFAULT 1,
+            is_active TINYINT(1) DEFAULT 1,
+            PRIMARY KEY (id),
+            UNIQUE KEY sku (sku)
+        ) {$charset_collate};";
+
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         dbDelta($sql_customers);
+        dbDelta($sql_kb_customers);
         dbDelta($sql_licenses);
+        dbDelta($sql_kb_licenses);
+        dbDelta($sql_license_types);
     }
     
     // פונקציות CRUD ללקוחות
     public static function get_customers() {
         global $wpdb;
-        $table = $wpdb->prefix . 'm365_customers';
+        $table = self::get_customers_table_name();
         return $wpdb->get_results("SELECT * FROM $table ORDER BY customer_name ASC");
     }
-    
+
     public static function get_customer($id) {
         global $wpdb;
-        $table = $wpdb->prefix . 'm365_customers';
+        $table = self::get_customers_table_name();
         return $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id = %d", $id));
     }
-    
+
     public static function save_customer($data) {
         global $wpdb;
-        $table = $wpdb->prefix . 'm365_customers';
-        
+        $table = self::get_customers_table_name();
+
         if (isset($data['id']) && $data['id'] > 0) {
             $wpdb->update($table, $data, array('id' => $data['id']));
             return $data['id'];
@@ -78,8 +143,8 @@ class M365_LM_Database {
     // פונקציות CRUD לרישיונות
     public static function get_licenses($include_deleted = false) {
         global $wpdb;
-        $table_licenses = $wpdb->prefix . 'm365_licenses';
-        $table_customers = $wpdb->prefix . 'm365_customers';
+        $table_licenses  = $wpdb->prefix . 'm365_licenses';
+        $table_customers = self::get_customers_table_name();
         
         $where = $include_deleted ? "" : "WHERE l.is_deleted = 0";
         
@@ -109,6 +174,28 @@ class M365_LM_Database {
             $wpdb->insert($table, $data);
             return $wpdb->insert_id;
         }
+    }
+
+    /**
+     * עדכון או יצירה של רישיון לפי SKU ולקוח
+     */
+    public static function upsert_license_by_sku($customer_id, $sku_id, $data) {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'm365_licenses';
+        $existing_id = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT id FROM {$table} WHERE customer_id = %d AND sku_id = %s",
+                intval($customer_id),
+                sanitize_text_field($sku_id)
+            )
+        );
+
+        if ($existing_id) {
+            $data['id'] = intval($existing_id);
+        }
+
+        return self::save_license($data);
     }
     
     public static function soft_delete_license($id) {
@@ -141,5 +228,78 @@ class M365_LM_Database {
         global $wpdb;
         $table = $wpdb->prefix . 'm365_licenses';
         return $wpdb->query("DELETE FROM $table WHERE is_deleted = 1");
+    }
+
+    /**
+     * קבלת סוגי רישיונות מטבלת ברירת המחדל
+     */
+    public static function get_license_types() {
+        global $wpdb;
+        $types_table = $wpdb->prefix . 'kb_billing_license_types';
+
+        $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $types_table));
+        if ($table_exists !== $types_table) {
+            return array();
+        }
+
+        return $wpdb->get_results(
+            $wpdb->prepare("SELECT sku, name, default_cost_price AS cost_price, default_selling_price AS selling_price, default_billing_cycle AS billing_cycle, default_billing_frequency AS billing_frequency FROM {$types_table} WHERE is_active = %d ORDER BY name", 1)
+        );
+    }
+
+    /**
+     * קבלת רשימת לקוחות מהתוסף המרכזי (dc_customers)
+     */
+    public static function get_dc_customers() {
+        global $wpdb;
+        $primary_table   = $wpdb->prefix . 'kb_customers';
+        $fallback_table  = $wpdb->prefix . 'dc_customers';
+
+        // בדיקה שהטבלה קיימת לפני ניסיון משיכה
+        $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $primary_table));
+        $table_to_use = $table_exists === $primary_table ? $primary_table : $fallback_table;
+
+        $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_to_use));
+        if ($table_exists !== $table_to_use) {
+            return array();
+        }
+
+        return $wpdb->get_results(
+            "SELECT customer_name, customer_number FROM {$table_to_use} WHERE is_deleted = 0 OR is_deleted IS NULL ORDER BY customer_name ASC"
+        );
+    }
+
+    /**
+     * זיהוי טבלת הלקוחות בשימוש (עדיפות לטבלה החדשה)
+     */
+    public static function get_customers_table_name() {
+        global $wpdb;
+        $kb_table      = $wpdb->prefix . 'kb_billing_customers';
+        $legacy_table  = $wpdb->prefix . 'm365_customers';
+
+        $kb_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $kb_table)) === $kb_table;
+        $legacy_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $legacy_table)) === $legacy_table;
+
+        if ($kb_exists) {
+            return $kb_table;
+        }
+
+        return $legacy_exists ? $legacy_table : $kb_table;
+    }
+
+    /**
+     * עדכון סטטוס חיבור אחרון ללקוח
+     */
+    public static function update_connection_status($customer_id, $status, $message = '') {
+        global $wpdb;
+
+        $table = self::get_customers_table_name();
+        $data  = array(
+            'last_connection_status'  => sanitize_text_field($status),
+            'last_connection_message' => $message !== null ? wp_kses_post($message) : null,
+            'last_connection_time'    => current_time('mysql'),
+        );
+
+        return $wpdb->update($table, $data, array('id' => intval($customer_id)));
     }
 }
