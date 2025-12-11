@@ -7,6 +7,7 @@ class M365_LM_Shortcodes {
         add_shortcode('m365_main_page', array($this, 'main_page'));
         add_shortcode('m365_recycle_bin', array($this, 'recycle_bin'));
         add_shortcode('m365_settings', array($this, 'settings_page'));
+        add_shortcode('kb_billing_log', array($this, 'log_page'));
         
         add_action('wp_enqueue_scripts', array($this, 'enqueue_scripts'));
         add_action('wp_ajax_m365_sync_licenses', array($this, 'ajax_sync_licenses'));
@@ -67,10 +68,12 @@ class M365_LM_Shortcodes {
         $customer = M365_LM_Database::get_customer($customer_id);
 
         if (!$customer) {
+            M365_LM_Database::log_event('error', 'sync_licenses', 'לקוח לא נמצא', $customer_id);
             wp_send_json_error(array('message' => 'לקוח לא נמצא'));
         }
 
         if (empty($customer->tenant_id) || empty($customer->client_id) || empty($customer->client_secret)) {
+            M365_LM_Database::log_event('error', 'sync_licenses', 'חסרים פרטי Tenant/Client להגדרת חיבור', $customer_id);
             wp_send_json_error(array('message' => 'חסרים פרטי Tenant/Client להגדרת חיבור')); 
         }
 
@@ -84,6 +87,7 @@ class M365_LM_Shortcodes {
         if (empty($skus['success'])) {
             $message = $skus['message'] ?? 'Graph error';
             M365_LM_Database::update_connection_status($customer_id, 'failed', $message);
+            M365_LM_Database::log_event('error', 'sync_licenses', $message, $customer_id, $skus);
             wp_send_json_error(array('message' => 'Graph error: ' . $message));
         }
 
@@ -108,6 +112,7 @@ class M365_LM_Shortcodes {
         }
 
         M365_LM_Database::update_connection_status($customer_id, 'connected', 'Last sync successful');
+        M365_LM_Database::log_event('info', 'sync_licenses', 'סנכרון רישוי הושלם בהצלחה', $customer_id, array('licenses_saved' => $licenses_saved));
 
         wp_send_json_success(array('message' => 'סנכרון הושלם בהצלחה', 'count' => $licenses_saved));
     }
@@ -115,6 +120,7 @@ class M365_LM_Shortcodes {
     /**
      * בדיקת חיבור לגרף עבור לקוח
      */
+    
     public function ajax_test_connection() {
         check_ajax_referer('m365_nonce', 'nonce');
 
@@ -122,10 +128,12 @@ class M365_LM_Shortcodes {
         $customer    = M365_LM_Database::get_customer($customer_id);
 
         if (!$customer) {
+            M365_LM_Database::log_event('error', 'test_connection', 'לקוח לא נמצא', $customer_id);
             wp_send_json_error(array('message' => 'לקוח לא נמצא'));
         }
 
         if (empty($customer->tenant_id) || empty($customer->client_id) || empty($customer->client_secret)) {
+            M365_LM_Database::log_event('error', 'test_connection', 'חסרים פרטי Tenant/Client להגדרת חיבור', $customer_id);
             wp_send_json_error(array('message' => 'חסרים פרטי Tenant/Client להגדרת חיבור'));
         }
 
@@ -138,23 +146,29 @@ class M365_LM_Shortcodes {
         $result = $api->test_connection();
 
         if (!empty($result['success'])) {
-            M365_LM_Database::update_connection_status($customer_id, 'connected', $result['message'] ?? 'Connected');
+            $message = $result['message'] ?? 'Connected';
+            M365_LM_Database::update_connection_status($customer_id, 'connected', $message);
+            M365_LM_Database::log_event('info', 'test_connection', $message, $customer_id, $result);
+
             wp_send_json_success(array(
                 'status'  => 'connected',
-                'message' => $result['message'] ?? 'Connected',
+                'message' => $message,
                 'time'    => current_time('mysql'),
             ));
         }
 
         $message = $result['message'] ?? 'Connection failed';
         M365_LM_Database::update_connection_status($customer_id, 'failed', $message);
+        M365_LM_Database::log_event('error', 'test_connection', $message, $customer_id, $result);
+
         wp_send_json_error(array(
             'status'  => 'failed',
             'message' => $message,
             'time'    => current_time('mysql'),
         ));
     }
-    
+
+
     // AJAX - מחיקה רכה
     public function ajax_delete_license() {
         check_ajax_referer('m365_nonce', 'nonce');
@@ -202,5 +216,100 @@ class M365_LM_Shortcodes {
         
         M365_LM_Database::save_license($data);
         wp_send_json_success();
+    }
+    public function log_page($atts) {
+        $atts = shortcode_atts(array(
+            'limit'       => 200,
+            'customer_id' => 0,
+            'level'       => '',
+            'context'     => '',
+        ), $atts, 'kb_billing_log');
+
+        $args = array(
+            'limit'       => intval($atts['limit']),
+            'customer_id' => intval($atts['customer_id']) ?: null,
+            'level'       => $atts['level'],
+            'context'     => $atts['context'],
+        );
+
+        $logs      = M365_LM_Database::get_logs($args);
+        $customers = M365_LM_Database::get_customers();
+        $customers_by_id = array();
+
+        if (!empty($customers)) {
+            foreach ($customers as $c) {
+                $customers_by_id[$c->id] = $c;
+            }
+        }
+
+        ob_start();
+        ?>
+        
+        ?>
+        <div class="m365-lm-container">
+            <?php
+                $main_url     = 'https://kb.macomp.co.il/?page_id=14296';
+                $recycle_url  = 'https://kb.macomp.co.il/?page_id=14291';
+                $settings_url = 'https://kb.macomp.co.il/?page_id=14292';
+                $logs_url     = 'https://kb.macomp.co.il/?page_id=14285';
+                $active       = 'logs';
+            ?>
+            <div class="m365-nav-links">
+                <a href="<?php echo esc_url($main_url); ?>" class="<?php echo $active === 'main' ? 'active' : ''; ?>">ראשי</a>
+                <a href="<?php echo esc_url($recycle_url); ?>" class="<?php echo $active === 'recycle' ? 'active' : ''; ?>">סל מחזור</a>
+                <a href="<?php echo esc_url($settings_url); ?>" class="<?php echo $active === 'settings' ? 'active' : ''; ?>">הגדרות</a>
+                <a href="<?php echo esc_url($logs_url); ?>" class="<?php echo $active === 'logs' ? 'active' : ''; ?>">לוגים</a>
+            </div>
+            <h2>KB Billing Manager – לוגים</h2>
+            <?php if (empty($logs)): ?>
+                <p>אין אירועים בלוג.</p>
+            <?php else: ?>
+                <div class="m365-table-wrapper">
+                    <table class="m365-table kbbm-log-table">
+                        <thead>
+                            <tr>
+                                <th>זמן</th>
+                                <th>Level</th>
+                                <th>Context</th>
+                                <th>לקוח</th>
+                                <th>הודעה</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        <?php foreach ($logs as $log):
+                            $customer_label = '';
+                            if (!empty($log->customer_id) && isset($customers_by_id[$log->customer_id])) {
+                                $c = $customers_by_id[$log->customer_id];
+                                $customer_label = esc_html($c->customer_number . ' - ' . $c->customer_name);
+                            }
+                            $row_class = '';
+                            if ($log->level === 'error') {
+                                $row_class = 'log-level-error';
+                            } elseif ($log->level === 'warning') {
+                                $row_class = 'log-level-warning';
+                            } elseif ($log->level === 'info') {
+                                $row_class = 'log-level-info';
+                            }
+                            ?>
+                            <tr class="<?php echo esc_attr($row_class); ?>">
+                                <td><?php echo esc_html($log->event_time); ?></td>
+                                <td><?php echo esc_html($log->level); ?></td>
+                                <td><?php echo esc_html($log->context); ?></td>
+                                <td><?php echo $customer_label; ?></td>
+                                <td>
+                                    <div class="kbbm-log-message"><?php echo esc_html($log->message); ?></div>
+                                    <?php if (!empty($log->data)): ?>
+                                        <pre class="kbbm-log-data"><?php echo esc_html($log->data); ?></pre>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
+        </div>
+        <?php
+        return ob_get_clean();
     }
 }
