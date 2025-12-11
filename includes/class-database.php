@@ -324,8 +324,13 @@ class M365_LM_Database {
         );
 
         $format = array('%s','%s','%s','%d','%s','%s');
+        $result = $wpdb->insert($table, $insert, $format);
 
-        return $wpdb->insert($table, $insert, $format);
+        if ($result !== false) {
+            self::prune_logs();
+        }
+
+        return $result;
     }
 
     public static function get_logs($args = array()) {
@@ -364,6 +369,26 @@ class M365_LM_Database {
         }
 
         return $wpdb->get_results($sql);
+    }
+
+    public static function get_log_retention_days() {
+        $days = intval(get_option('kbbm_log_retention_days', 120));
+        return $days > 0 ? $days : 120;
+    }
+
+    public static function prune_logs($days = null) {
+        global $wpdb;
+
+        $days = $days !== null ? intval($days) : self::get_log_retention_days();
+        $days = $days > 0 ? $days : 120;
+
+        $table = $wpdb->prefix . 'kb_billing_logs';
+        $wpdb->query(
+            $wpdb->prepare(
+                "DELETE FROM {$table} WHERE event_time < DATE_SUB(NOW(), INTERVAL %d DAY)",
+                $days
+            )
+        );
     }
 
 
