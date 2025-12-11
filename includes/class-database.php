@@ -45,6 +45,23 @@ class M365_LM_Database {
             UNIQUE KEY customer_number (customer_number)
         ) {$charset_collate};";
 
+        // טבלת לוגים
+        $table_logs = $wpdb->prefix . 'kb_billing_logs';
+        $sql_logs = "CREATE TABLE IF NOT EXISTS $table_logs (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            event_time datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            level varchar(20) NOT NULL DEFAULT 'info',
+            context varchar(100) DEFAULT NULL,
+            customer_id bigint(20) DEFAULT NULL,
+            message text,
+            data longtext,
+            PRIMARY KEY (id),
+            KEY idx_time (event_time),
+            KEY idx_level (level),
+            KEY idx_context (context),
+            KEY idx_customer (customer_id)
+        ) {$charset_collate};";
+
         // טבלת רישיונות קיימת
         $table_licenses = $wpdb->prefix . 'm365_licenses';
         $sql_licenses = "CREATE TABLE IF NOT EXISTS $table_licenses (
@@ -112,6 +129,7 @@ class M365_LM_Database {
         dbDelta($sql_licenses);
         dbDelta($sql_kb_licenses);
         dbDelta($sql_license_types);
+        dbDelta($sql_logs);
     }
     
     // פונקציות CRUD ללקוחות
@@ -290,6 +308,65 @@ class M365_LM_Database {
     /**
      * עדכון סטטוס חיבור אחרון ללקוח
      */
+
+    public static function log_event($level, $context, $message, $customer_id = null, $data = null) {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'kb_billing_logs';
+
+        $insert = array(
+            'event_time'  => current_time('mysql'),
+            'level'       => sanitize_text_field($level),
+            'context'     => sanitize_text_field($context),
+            'customer_id' => !empty($customer_id) ? intval($customer_id) : null,
+            'message'     => $message,
+            'data'        => !empty($data) ? wp_json_encode($data) : null,
+        );
+
+        $format = array('%s','%s','%s','%d','%s','%s');
+
+        return $wpdb->insert($table, $insert, $format);
+    }
+
+    public static function get_logs($args = array()) {
+        global $wpdb;
+
+        $defaults = array(
+            'limit'       => 200,
+            'customer_id' => null,
+            'level'       => '',
+            'context'     => '',
+        );
+        $args = wp_parse_args($args, $defaults);
+
+        $table = $wpdb->prefix . 'kb_billing_logs';
+
+        $where = array();
+        if (!empty($args['customer_id'])) {
+            $where[] = $wpdb->prepare('customer_id = %d', $args['customer_id']);
+        }
+        if (!empty($args['level'])) {
+            $where[] = $wpdb->prepare('level = %s', $args['level']);
+        }
+        if (!empty($args['context'])) {
+            $where[] = $wpdb->prepare('context = %s', $args['context']);
+        }
+
+        $sql = "SELECT * FROM {$table}";
+        if (!empty($where)) {
+            $sql .= ' WHERE ' . implode(' AND ', $where);
+        }
+        $sql .= ' ORDER BY event_time DESC';
+
+        $limit = intval($args['limit']);
+        if ($limit > 0) {
+            $sql .= $wpdb->prepare(' LIMIT %d', $limit);
+        }
+
+        return $wpdb->get_results($sql);
+    }
+
+
     public static function update_connection_status($customer_id, $status, $message = '') {
         global $wpdb;
 
