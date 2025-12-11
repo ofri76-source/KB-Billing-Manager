@@ -125,22 +125,25 @@ class M365_LM_Admin {
                     
                     <div class="form-group">
                         <label>בחר לקוח:</label>
-                        <select id="api-customer-select">
+                        <select id="api-customer-select" data-download-base="<?php echo esc_url(admin_url('admin-post.php?action=kbbm_download_script&customer_id=')); ?>">
                             <option value="">בחר לקוח</option>
                             <?php foreach ($customers as $customer): ?>
-                                <option value="<?php echo esc_attr($customer->tenant_domain); ?>">
-                                    <?php echo esc_html($customer->customer_name); ?>
+                                <option value="<?php echo esc_attr($customer->id); ?>">
+                                    <?php echo esc_html($customer->customer_name); ?> (<?php echo esc_html($customer->customer_number); ?>)
                                 </option>
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    
+
                     <button id="generate-api-script" class="button button-primary">צור סקריפט</button>
-                    
+
                     <div id="api-script-output" style="display:none; margin-top: 20px;">
                         <h4>סקריפט PowerShell:</h4>
                         <textarea id="api-script-text" readonly style="width: 100%; height: 400px; font-family: monospace; direction: ltr; text-align: left;"></textarea>
-                        <button id="copy-api-script" class="button button-secondary">העתק ללוח</button>
+                        <div class="form-actions" style="margin-top:10px;">
+                            <button id="copy-api-script" class="button button-secondary" type="button">העתק ללוח</button>
+                            <a id="download-api-script" class="button" href="#" target="_blank" rel="noreferrer">הורד סקריפט</a>
+                        </div>
                     </div>
                     
                     <div class="m365-info-box" style="margin-top: 20px;">
@@ -274,80 +277,138 @@ function kbbm_generate_ps_script($customer_id) {
     $customer_name   = sanitize_text_field($row['customer_name'] ?? '');
     $tenant_domain   = sanitize_text_field($row['tenant_domain'] ?? '');
 
-    $script = <<<PS
+    $ps_template = <<<'PS'
 <#
 KB Billing Manager Setup Script
-Customer: {$customer_name} ({$customer_number})
+Customer: {{CUSTOMER_NAME}} ({{CUSTOMER_NUMBER}})
 #>
 
 param(
-    [string]$TenantDomain = "{$tenant_domain}"
+    [string]$TenantDomain = "{{TENANT_DOMAIN}}"
 )
 
-# Microsoft 365 API Setup Script
-# הפעל סקריפט זה ב-PowerShell כמנהל
+$ErrorActionPreference = "Stop"
+$ProgressPreference    = "SilentlyContinue"
 
-# התחברות ל-Azure AD
-Connect-AzureAD -TenantDomain "$TenantDomain"
+Write-Host "Starting KB Billing Manager setup for tenant $TenantDomain" -ForegroundColor Cyan
 
-# יצירת App Registration
-$appName = "M365 License Manager - $TenantDomain"
-$app = New-AzureADApplication -DisplayName $appName
+function Write-Section {
+    param([string]$Text)
+    Write-Host "`n==================================" -ForegroundColor DarkGray
+    Write-Host $Text -ForegroundColor Cyan
+    Write-Host "==================================" -ForegroundColor DarkGray
+}
 
-# יצירת Service Principal
-$sp = New-AzureADServicePrincipal -AppId $app.AppId
+Add-Type -AssemblyName System.Web
 
-# יצירת Client Secret (תוקף 2 שנים)
-$secret = New-AzureADApplicationPasswordCredential -ObjectId $app.ObjectId -CustomKeyIdentifier "M365LM" -EndDate (Get-Date).AddYears(2)
+# 1) Acquire device code
+$clientId = "04f0c124-f2bc-4f1a-af72-7e29a4e4b007"
+$scope    = "https://graph.microsoft.com/.default offline_access"
+$deviceCodeResponse = Invoke-RestMethod -Method Post -Uri "https://login.microsoftonline.com/organizations/oauth2/v2.0/devicecode" -Body @{ client_id = $clientId; scope = $scope }
 
-# הענקת הרשאות Microsoft Graph API
-$graphResourceId = "00000003-0000-0000-c000-000000000000"
+Write-Section "Authorize this session"
+Write-Host "To continue, open the following URL and enter the code below:" -ForegroundColor Yellow
+Write-Host $deviceCodeResponse.verification_uri -ForegroundColor Green
+Write-Host "Code: $($deviceCodeResponse.user_code)" -ForegroundColor Green
+Write-Host "Waiting up to 5 minutes for authentication..." -ForegroundColor Yellow
 
-# Directory.Read.All
-$directoryReadAll = "7ab1d382-f21e-4acd-a863-ba3e13f7da61"
+# 2) Poll for token up to 5 minutes
+$token = $null
+$endTime = (Get-Date).AddMinutes(5)
+$tokenEndpoint = "https://login.microsoftonline.com/organizations/oauth2/v2.0/token"
+while (-not $token -and (Get-Date) -lt $endTime) {
+    Start-Sleep -Seconds [int]$deviceCodeResponse.interval
+    try {
+        $token = Invoke-RestMethod -Method Post -Uri $tokenEndpoint -Body @{
+            grant_type = "urn:ietf:params:oauth:grant-type:device_code"
+            client_id  = $clientId
+            device_code = $deviceCodeResponse.device_code
+            scope      = $scope
+        }
+    } catch {
+        $err = $_.ErrorDetails.Message
+        if ($err -and $err -match "authorization_pending") {
+            continue
+        }
+        throw
+    }
+}
 
-# Organization.Read.All
-$orgReadAll = "498476ce-e0fe-48b0-b801-37ba7e2685c6"
+if (-not $token) {
+    throw "No token received. Please restart and approve within 5 minutes."
+}
 
-$requiredResourceAccess = New-Object -TypeName "Microsoft.Open.AzureAD.Model.RequiredResourceAccess"
-$requiredResourceAccess.ResourceAppId = $graphResourceId
+$headers = @{ Authorization = "Bearer $($token.access_token)" }
 
-$permission1 = New-Object -TypeName "Microsoft.Open.AzureAD.Model.ResourceAccess"
-$permission1.Type = "Role"
-$permission1.Id = $directoryReadAll
+# 3) Resolve tenant id
+$org = Invoke-RestMethod -Method Get -Uri "https://graph.microsoft.com/v1.0/organization" -Headers $headers
+$tenantId = $org.value[0].id
 
-$permission2 = New-Object -TypeName "Microsoft.Open.AzureAD.Model.ResourceAccess"
-$permission2.Type = "Role"
-$permission2.Id = $orgReadAll
+# 4) Find or create the application
+$displayName = "KB Billing Manager - $TenantDomain"
+$filter      = [System.Web.HttpUtility]::UrlEncode("displayName eq '$displayName'")
+$lookupUri   = "https://graph.microsoft.com/v1.0/applications?`$filter=$filter"
+$existingApp = Invoke-RestMethod -Method Get -Uri $lookupUri -Headers $headers
 
-$requiredResourceAccess.ResourceAccess = $permission1, $permission2
+if ($existingApp.value.Count -gt 0) {
+    $app = $existingApp.value[0]
+    Write-Host "Found existing app registration: $displayName" -ForegroundColor Green
+} else {
+    $resourceAppId = "00000003-0000-0000-c000-000000000000" # Microsoft Graph
+    $requiredRoles = @(
+        @{ id = "7ab1d382-f21e-4acd-a863-ba3e13f7da61"; type = "Role" },  # Directory.Read.All
+        @{ id = "498476ce-e0fe-48b0-b801-37ba7e2685c6"; type = "Role" }   # Organization.Read.All
+    )
 
-Set-AzureADApplication -ObjectId $app.ObjectId -RequiredResourceAccess $requiredResourceAccess
+    $appPayload = @{ 
+        displayName          = $displayName
+        signInAudience       = "AzureADMyOrg"
+        requiredResourceAccess = @(
+            @{ resourceAppId = $resourceAppId; resourceAccess = $requiredRoles }
+        )
+    } | ConvertTo-Json -Depth 5
 
-Write-Host "=================================="
-Write-Host "App Registration נוצר בהצלחה!"
-Write-Host "=================================="
-Write-Host "לקוח: {$customer_name} ({$customer_number})"
-Write-Host "Tenant Domain: $TenantDomain"
-Write-Host "Tenant ID: " (Get-AzureADTenantDetail).ObjectId
-Write-Host "Application (Client) ID: " $app.AppId
-Write-Host "Client Secret: " $secret.Value
-Write-Host "=================================="
-Write-Host "העתק את הפרטים האלה למסך ההגדרות בתוסף WordPress"
-Write-Host "=================================="
-Write-Host ""
-Write-Host "חשוב! עבור ל-Azure Portal ואשר את ההרשאות:"
-Write-Host "1. היכנס ל-Azure Portal (portal.azure.com)"
-Write-Host "2. עבור ל-Azure Active Directory > App Registrations"
-Write-Host "3. מצא את האפליקציה: $appName"
-Write-Host "4. לחץ על API Permissions"
-Write-Host "5. לחץ על 'Grant admin consent for $TenantDomain'"
-Write-Host "=================================="
+    $app = Invoke-RestMethod -Method Post -Uri "https://graph.microsoft.com/v1.0/applications" -Headers ($headers + @{ "Content-Type" = "application/json" }) -Body $appPayload
+    Write-Host "Created app registration: $displayName" -ForegroundColor Green
+}
+
+# 5) Ensure service principal exists
+$spLookup = Invoke-RestMethod -Method Get -Uri "https://graph.microsoft.com/v1.0/servicePrincipals?`$filter=appId eq '$($app.appId)'" -Headers $headers
+if ($spLookup.value.Count -gt 0) {
+    $sp = $spLookup.value[0]
+} else {
+    $sp = Invoke-RestMethod -Method Post -Uri "https://graph.microsoft.com/v1.0/servicePrincipals" -Headers ($headers + @{ "Content-Type" = "application/json" }) -Body (@{ appId = $app.appId } | ConvertTo-Json)
+    Write-Host "Created service principal" -ForegroundColor Green
+}
+
+# 6) Create 2-year client secret
+$endDate = (Get-Date).AddYears(2).ToString("yyyy-MM-ddTHH:mm:ssZ")
+$secretPayload = @{ passwordCredential = @{ displayName = "KBBM Auto Generated"; endDateTime = $endDate } } | ConvertTo-Json
+$secret = Invoke-RestMethod -Method Post -Uri "https://graph.microsoft.com/v1.0/applications/$($app.id)/addPassword" -Headers ($headers + @{ "Content-Type" = "application/json" }) -Body $secretPayload
+
+Write-Section "KB Billing Manager App Details"
+Write-Host "Customer: {{CUSTOMER_NAME}} ({{CUSTOMER_NUMBER}})" -ForegroundColor White
+Write-Host "Tenant Domain: $TenantDomain" -ForegroundColor White
+Write-Host "Tenant ID: $tenantId" -ForegroundColor White
+Write-Host "Client ID: $($app.appId)" -ForegroundColor White
+Write-Host "Client Secret: $($secret.secretText)" -ForegroundColor White
+Write-Host "Secret valid until: $endDate" -ForegroundColor White
+
+Write-Host "`nNext steps:" -ForegroundColor Yellow
+Write-Host "1) In Azure Portal, open App Registrations > $displayName" -ForegroundColor Yellow
+Write-Host "2) Go to API Permissions and grant admin consent" -ForegroundColor Yellow
+Write-Host "3) Copy Tenant ID, Client ID, and Client Secret into the KB Billing Manager plugin" -ForegroundColor Yellow
+Write-Host "Setup complete." -ForegroundColor Green
 PS;
+
+    $script = str_replace(
+        array('{{CUSTOMER_NAME}}', '{{CUSTOMER_NUMBER}}', '{{TENANT_DOMAIN}}'),
+        array($customer_name, $customer_number, $tenant_domain),
+        $ps_template
+    );
 
     return $script;
 }
-
 /**
  * Handler להורדת קובץ הסקריפט ללקוח
  */

@@ -23,12 +23,13 @@ jQuery(document).ready(function($) {
             },
             success: function(response) {
                 if (response.success) {
-                    showMessage('success', response.data.message + ' - ' + response.data.count + ' רישיונות');
+                    showMessage('success', (response.data.message || 'סנכרון הושלם בהצלחה') + ' - ' + (response.data.count || 0) + ' רישיונות');
                     setTimeout(function() {
                         location.reload();
                     }, 2000);
                 } else {
-                    showMessage('error', response.data.message);
+                    const msg = response && response.data && response.data.message ? response.data.message : 'שגיאת Graph כללית';
+                    showMessage('error', msg);
                 }
             },
             error: function() {
@@ -323,6 +324,36 @@ jQuery(document).ready(function($) {
         });
     });
 
+    // בדיקת חיבור
+    $(document).on('click', '.kbbm-test-connection', function(e) {
+        e.preventDefault();
+
+        const btn = $(this);
+        const id = btn.data('id');
+        const row = btn.closest('tr');
+        const statusEl = row.find('.connection-status');
+
+        if (!id) return;
+
+        btn.prop('disabled', true).text('בודק...');
+
+        $.post(m365Ajax.ajaxurl, {
+            action: 'kbbm_test_connection',
+            nonce: m365Ajax.nonce,
+            id: id
+        }, function(response) {
+            const message = response && response.data && response.data.message ? response.data.message : '';
+            if (response && response.success) {
+                updateStatus(statusEl, 'connected', message);
+            } else {
+                updateStatus(statusEl, 'failed', message || 'חיבור נכשל');
+                alert(message || 'חיבור נכשל');
+            }
+        }).always(function() {
+            btn.prop('disabled', false).text('בדוק חיבור');
+        });
+    });
+
     // שמירת לקוח
     $('#customer-form').on('submit', function(e) {
         e.preventDefault();
@@ -411,10 +442,33 @@ jQuery(document).ready(function($) {
                   .addClass(type)
                   .text(message)
                   .fadeIn();
-        
+
         setTimeout(function() {
             messageDiv.fadeOut();
         }, 5000);
+    }
+
+    function updateStatus(el, status, message) {
+        if (!el || !el.length) return;
+
+        el.removeClass('status-connected status-failed status-unknown')
+          .addClass('status-' + status)
+          .text(statusLabel(status, message));
+
+        if (message) {
+            el.attr('title', message);
+        }
+    }
+
+    function statusLabel(status, message) {
+        switch (status) {
+            case 'connected':
+                return 'מחובר';
+            case 'failed':
+                return message ? 'נכשל: ' + message : 'נכשל';
+            default:
+                return 'לא נבדק';
+        }
     }
     
 });

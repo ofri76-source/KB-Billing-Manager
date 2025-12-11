@@ -17,6 +17,9 @@ class M365_LM_Database {
             client_id varchar(255) DEFAULT NULL,
             client_secret text DEFAULT NULL,
             tenant_domain varchar(255) DEFAULT NULL,
+            last_connection_status varchar(20) DEFAULT 'unknown',
+            last_connection_message text DEFAULT NULL,
+            last_connection_time datetime DEFAULT NULL,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
@@ -33,6 +36,9 @@ class M365_LM_Database {
             client_id varchar(255) DEFAULT NULL,
             client_secret text DEFAULT NULL,
             tenant_domain varchar(255) DEFAULT NULL,
+            last_connection_status varchar(20) DEFAULT 'unknown',
+            last_connection_message text DEFAULT NULL,
+            last_connection_time datetime DEFAULT NULL,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
@@ -163,6 +169,28 @@ class M365_LM_Database {
             return $wpdb->insert_id;
         }
     }
+
+    /**
+     * עדכון או יצירה של רישיון לפי SKU ולקוח
+     */
+    public static function upsert_license_by_sku($customer_id, $sku_id, $data) {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'm365_licenses';
+        $existing_id = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT id FROM {$table} WHERE customer_id = %d AND sku_id = %s",
+                intval($customer_id),
+                sanitize_text_field($sku_id)
+            )
+        );
+
+        if ($existing_id) {
+            $data['id'] = intval($existing_id);
+        }
+
+        return self::save_license($data);
+    }
     
     public static function soft_delete_license($id) {
         global $wpdb;
@@ -251,5 +279,21 @@ class M365_LM_Database {
         }
 
         return $legacy_exists ? $legacy_table : $kb_table;
+    }
+
+    /**
+     * עדכון סטטוס חיבור אחרון ללקוח
+     */
+    public static function update_connection_status($customer_id, $status, $message = '') {
+        global $wpdb;
+
+        $table = self::get_customers_table_name();
+        $data  = array(
+            'last_connection_status'  => sanitize_text_field($status),
+            'last_connection_message' => $message !== null ? wp_kses_post($message) : null,
+            'last_connection_time'    => current_time('mysql'),
+        );
+
+        return $wpdb->update($table, $data, array('id' => intval($customer_id)));
     }
 }

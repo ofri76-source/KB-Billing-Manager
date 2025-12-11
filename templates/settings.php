@@ -33,28 +33,54 @@
                         <th>שם לקוח</th>
                         <th>Tenant ID</th>
                         <th>Client ID</th>
+                        <th>סטטוס</th>
                         <th>פעולות</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($customers)): ?>
                         <tr>
-                            <td colspan="5" class="no-data">אין לקוחות רשומים</td>
+                            <td colspan="6" class="no-data">אין לקוחות רשומים</td>
                         </tr>
                     <?php else: ?>
                         <?php foreach ($customers as $customer): ?>
                             <tr>
                                 <?php
-                                    $tenant_id  = isset($customer->tenant_id) ? (string) $customer->tenant_id : '';
-                                    $client_id  = isset($customer->client_id) ? (string) $customer->client_id : '';
+                                    $tenant_id   = isset($customer->tenant_id) ? (string) $customer->tenant_id : '';
+                                    $client_id   = isset($customer->client_id) ? (string) $customer->client_id : '';
+                                    $status_raw  = isset($customer->last_connection_status) ? $customer->last_connection_status : 'unknown';
+                                    $status_msg  = isset($customer->last_connection_message) ? $customer->last_connection_message : '';
+                                    $status_time = isset($customer->last_connection_time) ? $customer->last_connection_time : '';
+
+                                    $status_class = 'status-unknown';
+                                    $status_label = 'לא נבדק';
+
+                                    if ($status_raw === 'connected') {
+                                        $status_class = 'status-connected';
+                                        $status_label = 'מחובר';
+                                    } elseif ($status_raw === 'failed') {
+                                        $status_class = 'status-failed';
+                                        $status_label = $status_msg ? 'נכשל: ' . $status_msg : 'נכשל';
+                                    }
                                 ?>
                                 <td><?php echo esc_html($customer->customer_number); ?></td>
                                 <td><?php echo esc_html($customer->customer_name); ?></td>
                                 <td><?php echo esc_html(substr($tenant_id, 0, 20)) . (strlen($tenant_id) > 20 ? '...' : ''); ?></td>
                                 <td><?php echo esc_html(substr($client_id, 0, 20)) . (strlen($client_id) > 20 ? '...' : ''); ?></td>
                                 <td>
+                                    <span class="connection-status <?php echo esc_attr($status_class); ?>" title="<?php echo esc_attr($status_msg); ?>">
+                                        <?php echo esc_html($status_label); ?>
+                                    </span>
+                                    <?php if (!empty($status_time)): ?>
+                                        <div class="status-time">עודכן: <?php echo esc_html($status_time); ?></div>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
                                     <button class="m365-btn m365-btn-small edit-customer kbbm-edit-customer" data-id="<?php echo $customer->id; ?>">
                                         ערוך
+                                    </button>
+                                    <button class="m365-btn m365-btn-small m365-btn-secondary kbbm-test-connection" data-id="<?php echo $customer->id; ?>">
+                                        בדוק חיבור
                                     </button>
                                     <button class="m365-btn m365-btn-small m365-btn-danger delete-customer kbbm-delete-customer" data-id="<?php echo $customer->id; ?>">
                                         מחק
