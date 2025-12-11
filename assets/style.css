@@ -1,12 +1,19 @@
 /* כללי */
 .m365-lm-container {
     direction: rtl;
+    width: 100%;
     max-width: 100%;
     margin: 20px auto;
     padding: 20px;
     background: #fff;
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.kbbm-wrap {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding-right: 0;
 }
 
 .m365-header {
@@ -30,6 +37,35 @@
     align-items: center;
 }
 
+.m365-nav-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.m365-nav-links a {
+    display: inline-block;
+    padding: 8px 16px;
+    border-radius: 4px;
+    text-decoration: none;
+    border: 1px solid #ddd;
+    background: #f3f2f1;
+    color: #323130;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.m365-nav-links a:hover {
+    background: #e1dfdd;
+}
+
+.m365-nav-links a.active {
+    background: #0078d4;
+    color: #fff;
+    border-color: #0078d4;
+}
+
 /* כפתורים */
 .m365-btn {
     padding: 10px 20px;
@@ -48,6 +84,18 @@
 
 .m365-btn-primary:hover {
     background: #005a9e;
+}
+
+.m365-btn-secondary {
+    background: #f3f2f1;
+    color: #323130;
+    border: 1px solid #ddd;
+}
+
+.m365-btn-secondary:hover,
+.m365-btn-secondary.active {
+    background: #e1dfdd;
+    color: #000;
 }
 
 .m365-btn-success {
@@ -169,26 +217,31 @@
 }
 
 /* Modal */
-.m365-modal {
+.m365-modal,
+.kbbm-modal-overlay {
     display: none;
     position: fixed;
-    z-index: 9999;
+    z-index: 99999;
     left: 0;
     top: 0;
-    width: 100%;
-    height: 100%;
+    width: 100vw;
+    height: 100vh;
     background-color: rgba(0,0,0,0.5);
 }
 
-.m365-modal-content {
+.m365-modal-content,
+.kbbm-modal {
     background-color: #fff;
-    margin: 5% auto;
+    position: relative;
+    margin: 40px auto;
     padding: 30px;
     border-radius: 8px;
     width: 90%;
-    max-width: 600px;
-    position: relative;
+    max-width: 700px;
+    max-height: 90vh;
+    overflow-y: auto;
     box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    z-index: 100000;
 }
 
 .m365-modal-close {
@@ -213,6 +266,37 @@
 /* טפסים */
 .form-group {
     margin-bottom: 20px;
+}
+
+.customer-lookup .customer-lookup-results {
+    margin-top: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+    display: none;
+    background: #fff;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.customer-lookup .customer-lookup-results .customer-result {
+    padding: 10px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid #f3f2f1;
+}
+
+.customer-lookup .customer-lookup-results .customer-result:last-child {
+    border-bottom: none;
+}
+
+.customer-lookup .customer-lookup-results .customer-result:hover {
+    background: #f3f2f1;
+}
+
+.customer-lookup-hint {
+    display: block;
+    margin-top: 6px;
+    color: #605e5c;
 }
 
 .form-group label {
