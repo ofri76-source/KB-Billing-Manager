@@ -269,7 +269,12 @@ jQuery(document).ready(function($) {
         $('#customer-id').val('');
         $('#customer-lookup').val('');
         $('#customer-lookup-results').hide();
-        $('#customer-modal').fadeIn();
+
+        // גלילה לטופס במקום פתיחת פופאפ
+        const formWrapper = $('#customer-form-wrapper');
+        if (formWrapper.length) {
+            $('html, body').animate({ scrollTop: formWrapper.offset().top - 80 }, 400);
+        }
     });
 
     // עריכת לקוח
