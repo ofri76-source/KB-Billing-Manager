@@ -61,7 +61,8 @@ class M365_LM_Admin {
         wp_enqueue_script('m365-lm-admin-script', M365_LM_PLUGIN_URL . 'assets/script.js', array('jquery'), M365_LM_VERSION, true);
         wp_localize_script('m365-lm-admin-script', 'm365Ajax', array(
             'ajaxurl' => admin_url('admin-ajax.php'),
-            'nonce' => wp_create_nonce('m365_nonce')
+            'nonce' => wp_create_nonce('m365_nonce'),
+            'dcCustomers' => M365_LM_Database::get_dc_customers(),
         ));
     }
     
@@ -69,6 +70,7 @@ class M365_LM_Admin {
     public function admin_page() {
         $licenses = M365_LM_Database::get_licenses();
         $customers = M365_LM_Database::get_customers();
+        $active = 'main';
         ?>
         <div class="wrap">
             <h1>ניהול רישיונות Microsoft 365</h1>
@@ -80,6 +82,8 @@ class M365_LM_Admin {
     // עמוד לקוחות
     public function customers_page() {
         $customers = M365_LM_Database::get_customers();
+        $license_types = M365_LM_Database::get_license_types();
+        $active = 'settings';
         ?>
         <div class="wrap">
             <h1>ניהול לקוחות</h1>
@@ -94,6 +98,7 @@ class M365_LM_Admin {
         $deleted_licenses = array_filter($deleted_licenses, function($license) {
             return $license->is_deleted == 1;
         });
+        $active = 'recycle';
         ?>
         <div class="wrap">
             <h1>סל מחזור</h1>
