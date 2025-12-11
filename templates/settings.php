@@ -3,8 +3,10 @@
         $main_url       = 'https://kb.macomp.co.il/?page_id=14296';
         $recycle_url    = 'https://kb.macomp.co.il/?page_id=14291';
         $settings_url   = 'https://kb.macomp.co.il/?page_id=14292';
+        $logs_url       = 'https://kb.macomp.co.il/?page_id=14285';
         $active         = isset($active) ? $active : '';
         $license_types  = isset($license_types) ? $license_types : array();
+        $log_retention_days = isset($log_retention_days) ? intval($log_retention_days) : 120;
     ?>
     <div class="m365-nav-links">
         <a href="<?php echo esc_url($main_url); ?>" class="<?php echo $active === 'main' ? 'active' : ''; ?>">ראשי</a>
@@ -15,18 +17,78 @@
     <div class="m365-header">
         <h2>הגדרות</h2>
     </div>
-    
+
+    <div id="sync-message" class="m365-message" style="display:none;"></div>
+
     <div class="m365-settings-tabs">
         <button class="m365-tab-btn active" data-tab="customers">ניהול לקוחות</button>
         <button class="m365-tab-btn" data-tab="api-setup">הגדרת API</button>
+        <button class="m365-tab-btn" data-tab="log-settings">הגדרות לוגים</button>
     </div>
-    
+
     <!-- טאב לקוחות -->
     <div class="m365-tab-content active" id="customers-tab">
         <div class="m365-section">
             <h3>לקוחות רשומים</h3>
             <button id="add-customer" class="m365-btn m365-btn-success">הוסף לקוח חדש</button>
-            
+
+            <div id="customer-form-placeholder"></div>
+
+            <div id="customer-form-wrapper" class="kbbm-customer-form" style="display:none;">
+                <h3 id="customer-modal-title">הוסף לקוח חדש</h3>
+                <form id="customer-form">
+                        <input type="hidden" id="customer-id" name="id">
+
+                        <div class="form-group customer-lookup">
+                            <label>חיפוש לקוח קיים (מהתוסף המרכזי):</label>
+                            <input type="text" id="customer-lookup" placeholder="התחל להקליד שם או מספר לקוח">
+                            <div id="customer-lookup-results" class="customer-lookup-results"></div>
+                            <small class="customer-lookup-hint">הקלד כל חלק מהמחרוזת ולחץ על התוצאה כדי למלא את הטופס.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label>מספר לקוח:</label>
+                            <input type="text" id="customer-number" name="customer_number">
+                        </div>
+
+                        <div class="form-group">
+                            <label>שם לקוח:</label>
+                            <input type="text" id="customer-name" name="customer_name">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Tenant ID:</label>
+                            <input type="text" id="customer-tenant-id" name="tenant_id">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Client ID:</label>
+                            <input type="text" id="customer-client-id" name="client_id">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Client Secret:</label>
+                            <input type="password" id="customer-client-secret" name="client_secret">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Tenant Domain:</label>
+                            <input type="text" id="customer-tenant-domain" name="tenant_domain" placeholder="example.onmicrosoft.com">
+                        </div>
+
+                        <div class="form-group">
+                            <label>הדבקת תוצאות סקריפט/חיבור:</label>
+                            <textarea id="customer-paste-source" placeholder="הדבק כאן את ה-Tenant ID, Client ID, Client Secret ועוד..." rows="4"></textarea>
+                            <button type="button" id="customer-paste-fill" class="m365-btn m365-btn-secondary" style="margin-top:8px;">מלא שדות מהטקסט</button>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="m365-btn m365-btn-primary">שמור</button>
+                            <button type="button" class="m365-btn m365-modal-cancel">ביטול</button>
+                        </div>
+                    </form>
+            </div>
+
             <table id="customers-table" class="m365-table" style="margin-top: 20px;">
                 <thead>
                     <tr>
@@ -172,6 +234,23 @@
             </div>
         </div>
     </div>
+
+    <!-- טאב הגדרות לוגים -->
+    <div class="m365-tab-content" id="log-settings-tab">
+        <div class="m365-section">
+            <h3>הגדרות לוגים</h3>
+            <form id="kbbm-log-settings-form">
+                <div class="form-group">
+                    <label>מספר ימים לשמירת לוגים לפני מחיקה:</label>
+                    <input type="number" id="kbbm-log-retention-days" name="log_retention_days" min="1" value="<?php echo esc_attr($log_retention_days); ?>" placeholder="120">
+                    <small>ברירת המחדל: 120 ימים.</small>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="m365-btn m365-btn-primary">שמור הגדרות</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
 <!-- Modal לתצוגת סקריפט -->
@@ -207,53 +286,3 @@
     </div>
 </div>
 
-<!-- טופס הוספה/עריכת לקוח (תצוגה בעמוד, ללא פופאפ) -->
-<div id="customer-form-wrapper" class="kbbm-customer-form">
-    <h3 id="customer-modal-title">הוסף לקוח חדש</h3>
-    <form id="customer-form">
-            <input type="hidden" id="customer-id" name="id">
-
-            <div class="form-group customer-lookup">
-                <label>חיפוש לקוח קיים (מהתוסף המרכזי):</label>
-                <input type="text" id="customer-lookup" placeholder="התחל להקליד שם או מספר לקוח">
-                <div id="customer-lookup-results" class="customer-lookup-results"></div>
-                <small class="customer-lookup-hint">הקלד כל חלק מהמחרוזת ולחץ על התוצאה כדי למלא את הטופס.</small>
-            </div>
-
-            <div class="form-group">
-                <label>מספר לקוח:</label>
-                <input type="text" id="customer-number" name="customer_number">
-            </div>
-
-            <div class="form-group">
-                <label>שם לקוח:</label>
-                <input type="text" id="customer-name" name="customer_name">
-            </div>
-
-            <div class="form-group">
-                <label>Tenant ID:</label>
-                <input type="text" id="customer-tenant-id" name="tenant_id">
-            </div>
-
-            <div class="form-group">
-                <label>Client ID:</label>
-                <input type="text" id="customer-client-id" name="client_id">
-            </div>
-
-            <div class="form-group">
-                <label>Client Secret:</label>
-                <input type="password" id="customer-client-secret" name="client_secret">
-            </div>
-            
-            <div class="form-group">
-                <label>Tenant Domain:</label>
-                <input type="text" id="customer-tenant-domain" name="tenant_domain" placeholder="example.onmicrosoft.com">
-            </div>
-            
-            <div class="form-actions">
-                <button type="submit" class="m365-btn m365-btn-primary">שמור</button>
-                <button type="button" class="m365-btn m365-modal-cancel">ביטול</button>
-            </div>
-        </form>
-    </div>
-</div>
