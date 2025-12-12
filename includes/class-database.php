@@ -373,6 +373,12 @@ class M365_LM_Database {
         return $wpdb->get_results(
             $wpdb->prepare("SELECT sku, name, display_name, show_in_main, default_cost_price AS cost_price, default_selling_price AS selling_price, default_billing_cycle AS billing_cycle, default_billing_frequency AS billing_frequency FROM {$types_table} WHERE is_active = %d ORDER BY name", 1)
         );
+
+        if ($existing && isset($existing->id)) {
+            return $wpdb->update($types_table, $payload, array('id' => $existing->id));
+        }
+
+        return $wpdb->insert($types_table, $payload);
     }
 
     /**
