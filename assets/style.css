@@ -670,6 +670,13 @@
     outline: 1px solid #0078d4;
     outline-offset: 2px;
 }
+.kbbm-log-table th .kbbm-log-header-filter {
+    margin-top: 6px;
+}
+.kbbm-log-table th .kbbm-log-header-filter select {
+    width: 100%;
+    font-size: 12px;
+}
 .kbbm-log-table .log-level-error {
     background: #ffe5e5;
 }
