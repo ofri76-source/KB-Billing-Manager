@@ -314,7 +314,8 @@ class M365_LM_Database {
         $indexed = array();
 
         foreach ($types as $type) {
-            $indexed[$type->sku] = $type;
+            $key = !empty($type->sku) ? $type->sku : ('plan_' . md5($type->name));
+            $indexed[$key] = $type;
         }
 
         $distinct_licenses = $wpdb->get_results(
@@ -322,6 +323,14 @@ class M365_LM_Database {
         );
 
         foreach ($distinct_licenses as $license) {
+            if (empty($license->sku) && !empty($license->plan_name)) {
+                $license->sku = 'plan_' . md5($license->plan_name);
+            }
+
+            if (empty($license->sku)) {
+                continue;
+            }
+
             if (!isset($indexed[$license->sku])) {
                 $license->name          = $license->plan_name;
                 $license->display_name  = $license->plan_name;

@@ -74,18 +74,6 @@ if (!empty($licenses)) {
                     <th colspan="2">מחזור חיוב</th>
                     <th colspan="2">סה"כ חיובים</th>
                 </tr>
-                <tr class="plans-header-row">
-                    <th>תוכנית ללקוח</th>
-                    <th>חשבון חיוב</th>
-                    <th>מחיר ללקוח</th>
-                    <th>מחיר רכישה</th>
-                    <th>סה"כ נרכש</th>
-                    <th>סה"כ בשימוש</th>
-                    <th>סה"כ פנוי</th>
-                    <th>ת. חיוב</th>
-                    <th>חודשי/שנתי</th>
-                    <th>פעולות</th>
-                </tr>
             </thead>
             <tbody>
             <?php if (empty($grouped_customers)): ?>
@@ -119,6 +107,18 @@ if (!empty($licenses)) {
                         <td colspan="2" class="<?php echo $has_billing_period ? '' : 'kbbm-empty-summary'; ?>"><?php echo $has_billing_period ? esc_html($billing_period_label) : ''; ?></td>
                         <td colspan="2" class="<?php echo $has_total_charges ? '' : 'kbbm-empty-summary'; ?>"><?php echo $has_total_charges ? number_format($total_charges, 2) : ''; ?></td>
                     </tr>
+                    <tr class="plans-header-row detail-row" data-customer="<?php echo esc_attr($cid); ?>" style="display:none;">
+                        <th>תוכנית ללקוח</th>
+                        <th>חשבון חיוב</th>
+                        <th>מחיר ללקוח</th>
+                        <th>מחיר רכישה</th>
+                        <th>סה"כ נרכש</th>
+                        <th>סה"כ בשימוש</th>
+                        <th>סה"כ פנוי</th>
+                        <th>ת. חיוב</th>
+                        <th>חודשי/שנתי</th>
+                        <th>פעולות</th>
+                    </tr>
                     <?php foreach ($customer['licenses'] as $license): ?>
                         <?php
                             $total_purchased = ($license->quantity > 0) ? $license->quantity : $license->enabled_units;
@@ -128,7 +128,7 @@ if (!empty($licenses)) {
                                 $billing_display .= ' / ' . $license->billing_frequency;
                             }
                         ?>
-                        <tr class="license-row" style="display:none;"
+                        <tr class="license-row detail-row" style="display:none;"
                             data-id="<?php echo esc_attr($license->id); ?>"
                             data-customer="<?php echo esc_attr($cid); ?>"
                             data-billing-cycle="<?php echo esc_attr($license->billing_cycle); ?>"
@@ -152,7 +152,7 @@ if (!empty($licenses)) {
                             </td>
                         </tr>
                     <?php endforeach; ?>
-                    <tr class="kb-notes-row" data-customer="<?php echo esc_attr($cid); ?>" style="display:none;">
+                    <tr class="kb-notes-row detail-row" data-customer="<?php echo esc_attr($cid); ?>" style="display:none;">
                         <td colspan="10" class="kb-notes-cell">
                             <strong>הערות:</strong>
                             <span class="kb-notes-value"><?php echo esc_html($customer_notes); ?></span>

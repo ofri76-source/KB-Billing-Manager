@@ -2,7 +2,7 @@
 .m365-lm-container {
     direction: rtl;
     width: 100%;
-    max-width: 100%;
+    max-width: 100vw;
     margin: 20px auto;
     padding: 20px;
     background: #fff;
@@ -25,9 +25,21 @@
 .kbbm-wrap .m365-lm-container,
 .kbbm-wrap .wrap,
 .kbbm-wrap .container,
-.kbbm-wrap .row {
+.kbbm-wrap .row,
+#wpbody-content > .wrap {
     width: 100% !important;
     max-width: 100% !important;
+    padding: 0;
+}
+
+.m365-table-wrapper,
+.m365-table {
+    width: 100%;
+}
+
+.kbbm-license-types-table th,
+.kbbm-license-types-table td {
+    text-align: center;
 }
 
 .kbbm-license-types-table th,
@@ -204,6 +216,13 @@
     background-color: #e1dfdd;
 }
 
+.m365-table th,
+.m365-table td {
+    padding: 6px 8px;
+    font-size: 13px;
+    line-height: 1.3;
+}
+
 .m365-table .actions {
     display: flex;
     gap: 5px;
@@ -215,13 +234,13 @@
     color: #fff;
 }
 
-.kbbm-report-table thead .plans-header-row {
+.kbbm-report-table .plans-header-row {
     background-color: #cfe8ff;
     font-weight: bold;
     display: none;
 }
 
-.kbbm-report-table thead .plans-header-row.visible {
+.kbbm-report-table .plans-header-row.visible {
     display: table-row;
 }
 
@@ -235,6 +254,10 @@
 .kbbm-report-table tbody tr.customer-summary:hover,
 .kbbm-report-table tbody tr.customer-summary.open {
     background-color: #005a9e;
+}
+
+.kbbm-report-table tbody tr.detail-row {
+    display: none;
 }
 
 .kbbm-report-table tbody tr.license-row:nth-of-type(even) {
