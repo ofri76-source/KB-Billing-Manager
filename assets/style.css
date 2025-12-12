@@ -42,6 +42,11 @@
     text-align: center;
 }
 
+.kbbm-license-types-table th,
+.kbbm-license-types-table td {
+    text-align: center;
+}
+
 .m365-header {
     display: flex;
     justify-content: space-between;
