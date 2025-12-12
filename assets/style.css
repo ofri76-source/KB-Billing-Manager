@@ -30,6 +30,11 @@
     max-width: 100% !important;
 }
 
+.kbbm-license-types-table th,
+.kbbm-license-types-table td {
+    text-align: center;
+}
+
 .m365-header {
     display: flex;
     justify-content: space-between;
@@ -213,6 +218,11 @@
 .kbbm-report-table thead .plans-header-row {
     background-color: #cfe8ff;
     font-weight: bold;
+    display: none;
+}
+
+.kbbm-report-table thead .plans-header-row.visible {
+    display: table-row;
 }
 
 .kbbm-report-table tbody tr.customer-summary {

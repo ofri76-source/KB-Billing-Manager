@@ -8,13 +8,15 @@ class M365_LM_Shortcodes {
         add_shortcode('m365_recycle_bin', array($this, 'recycle_bin'));
         add_shortcode('m365_settings', array($this, 'settings_page'));
         add_shortcode('kb_billing_log', array($this, 'log_page'));
-        
+
         add_action('wp_enqueue_scripts', array($this, 'enqueue_scripts'));
         add_action('wp_ajax_m365_sync_licenses', array($this, 'ajax_sync_licenses'));
+        add_action('wp_ajax_m365_sync_all_licenses', array($this, 'ajax_sync_all_licenses'));
         add_action('wp_ajax_m365_delete_license', array($this, 'ajax_delete_license'));
         add_action('wp_ajax_m365_restore_license', array($this, 'ajax_restore_license'));
         add_action('wp_ajax_m365_hard_delete', array($this, 'ajax_hard_delete'));
         add_action('wp_ajax_m365_save_license', array($this, 'ajax_save_license'));
+        add_action('wp_ajax_m365_save_license_type', array($this, 'ajax_save_license_type'));
         add_action('wp_ajax_kbbm_test_connection', array($this, 'ajax_test_connection'));
     }
     
@@ -55,7 +57,7 @@ class M365_LM_Shortcodes {
         ob_start();
         $active = 'settings';
         $customers = M365_LM_Database::get_customers();
-        $license_types = M365_LM_Database::get_license_types();
+        $license_types = M365_LM_Database::get_combined_license_types();
         include M365_LM_PLUGIN_DIR . 'templates/settings.php';
         return ob_get_clean();
     }
@@ -65,16 +67,89 @@ class M365_LM_Shortcodes {
         check_ajax_referer('m365_nonce', 'nonce');
 
         $customer_id = intval($_POST['customer_id']);
+        $result = $this->sync_customer_licenses($customer_id);
+
+        if ($result['success']) {
+            wp_send_json_success(array('message' => $result['message'], 'count' => $result['count']));
+        }
+
+        wp_send_json_error(array('message' => $result['message']));
+    }
+
+    // AJAX - סנכרון לכל הלקוחות
+    public function ajax_sync_all_licenses() {
+        check_ajax_referer('m365_nonce', 'nonce');
+
+        $customers = M365_LM_Database::get_customers();
+        $summary   = array('synced' => 0, 'errors' => array());
+
+        foreach ($customers as $customer) {
+            $result = $this->sync_customer_licenses(intval($customer->id));
+            if ($result['success']) {
+                $summary['synced']++;
+            } else {
+                $summary['errors'][] = array(
+                    'customer_id' => $customer->id,
+                    'message'     => $result['message'],
+                );
+            }
+        }
+
+        if (!empty($summary['errors'])) {
+            wp_send_json_error(array(
+                'message' => 'סנכרון הושלם עם שגיאות עבור חלק מהלקוחות',
+                'detail'  => $summary,
+            ));
+        }
+
+        wp_send_json_success(array(
+            'message' => 'סנכרון הושלם בהצלחה לכל הלקוחות',
+            'count'   => $summary['synced'],
+        ));
+    }
+
+    // AJAX - שמירת סוג רישיון
+    public function ajax_save_license_type() {
+        check_ajax_referer('m365_nonce', 'nonce');
+
+        $sku              = sanitize_text_field($_POST['sku'] ?? '');
+        $api_name         = sanitize_text_field($_POST['name'] ?? '');
+        $display_name     = sanitize_text_field($_POST['display_name'] ?? $api_name);
+        $cost_price       = floatval($_POST['cost_price'] ?? 0);
+        $selling_price    = floatval($_POST['selling_price'] ?? 0);
+        $billing_cycle    = sanitize_text_field($_POST['billing_cycle'] ?? 'monthly');
+        $billing_frequency= intval($_POST['billing_frequency'] ?? 1);
+        $show_in_main     = isset($_POST['show_in_main']) ? intval($_POST['show_in_main']) : 1;
+
+        if (empty($sku) || empty($api_name)) {
+            wp_send_json_error(array('message' => 'SKU ו-שם רישיון נדרשים')); 
+        }
+
+        M365_LM_Database::save_license_type(array(
+            'sku'              => $sku,
+            'name'             => $api_name,
+            'display_name'     => $display_name,
+            'cost_price'       => $cost_price,
+            'selling_price'    => $selling_price,
+            'billing_cycle'    => $billing_cycle,
+            'billing_frequency'=> $billing_frequency,
+            'show_in_main'     => $show_in_main,
+        ));
+
+        wp_send_json_success(array('message' => 'סוג הרישיון נשמר'));
+    }
+
+    private function sync_customer_licenses($customer_id) {
         $customer = M365_LM_Database::get_customer($customer_id);
 
         if (!$customer) {
             M365_LM_Database::log_event('error', 'sync_licenses', 'לקוח לא נמצא', $customer_id);
-            wp_send_json_error(array('message' => 'לקוח לא נמצא'));
+            return array('success' => false, 'message' => 'לקוח לא נמצא', 'count' => 0);
         }
 
         if (empty($customer->tenant_id) || empty($customer->client_id) || empty($customer->client_secret)) {
             M365_LM_Database::log_event('error', 'sync_licenses', 'חסרים פרטי Tenant/Client להגדרת חיבור', $customer_id);
-            wp_send_json_error(array('message' => 'חסרים פרטי Tenant/Client להגדרת חיבור')); 
+            return array('success' => false, 'message' => 'חסרים פרטי Tenant/Client להגדרת חיבור', 'count' => 0);
         }
 
         $api = new M365_LM_API_Connector(
@@ -88,7 +163,7 @@ class M365_LM_Shortcodes {
             $message = $skus['message'] ?? 'Graph error';
             M365_LM_Database::update_connection_status($customer_id, 'failed', $message);
             M365_LM_Database::log_event('error', 'sync_licenses', $message, $customer_id, $skus);
-            wp_send_json_error(array('message' => 'Graph error: ' . $message));
+            return array('success' => false, 'message' => 'Graph error: ' . $message, 'count' => 0);
         }
 
         $licenses_saved = 0;
@@ -114,7 +189,7 @@ class M365_LM_Shortcodes {
         M365_LM_Database::update_connection_status($customer_id, 'connected', 'Last sync successful');
         M365_LM_Database::log_event('info', 'sync_licenses', 'סנכרון רישוי הושלם בהצלחה', $customer_id, array('licenses_saved' => $licenses_saved));
 
-        wp_send_json_success(array('message' => 'סנכרון הושלם בהצלחה', 'count' => $licenses_saved));
+        return array('success' => true, 'message' => 'סנכרון הושלם בהצלחה', 'count' => $licenses_saved);
     }
 
     /**

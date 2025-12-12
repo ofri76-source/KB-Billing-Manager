@@ -205,34 +205,49 @@
     <div class="m365-tab-content" id="license-types-tab">
         <div class="m365-section">
             <h3>סוגי רישיונות (מחירי ברירת מחדל)</h3>
-            <p class="section-hint">טבלה זו משמשת לעדכון מחירי ברירת המחדל בלבד ואינה חלק מתצוגת הרישיונות ללקוחות.</p>
+            <p class="section-hint">הטבלה מציגה את שמות הרישיון מה-API, שם לתצוגה בטבלה הראשית, מחירי ברירת מחדל, ותיבה לבחירת הצגה בטבלה הראשית.</p>
             <div class="m365-table-wrapper">
-                <table class="m365-table">
+                <table class="m365-table kbbm-license-types-table">
                     <thead>
                         <tr>
                             <th>SKU</th>
-                            <th>שם רישיון</th>
-                            <th>מחיר עלות</th>
-                            <th>מחיר מכירה</th>
-                            <th>סוג חיוב</th>
+                            <th>שם רישיון (API)</th>
+                            <th>שם לתצוגה</th>
+                            <th>מחיר רכישה</th>
+                            <th>מחיר ללקוח</th>
+                            <th>חודשי/שנתי</th>
                             <th>תדירות</th>
+                            <th>להציג בטבלה הראשית</th>
+                            <th>פעולות</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (!empty($license_types)) : ?>
                             <?php foreach ($license_types as $type) : ?>
-                                <tr>
+                                <tr
+                                    data-sku="<?php echo esc_attr($type->sku); ?>"
+                                    data-name="<?php echo esc_attr($type->name); ?>"
+                                    data-display-name="<?php echo esc_attr($type->display_name ?? $type->name); ?>"
+                                    data-cost-price="<?php echo esc_attr($type->cost_price); ?>"
+                                    data-selling-price="<?php echo esc_attr($type->selling_price); ?>"
+                                    data-billing-cycle="<?php echo esc_attr($type->billing_cycle ?? 'monthly'); ?>"
+                                    data-billing-frequency="<?php echo esc_attr($type->billing_frequency ?? 1); ?>"
+                                    data-show-in-main="<?php echo isset($type->show_in_main) ? esc_attr($type->show_in_main) : 1; ?>"
+                                >
                                     <td><?php echo esc_html($type->sku); ?></td>
                                     <td><?php echo esc_html($type->name); ?></td>
+                                    <td><?php echo esc_html($type->display_name ?? $type->name); ?></td>
                                     <td><?php echo esc_html($type->cost_price); ?></td>
                                     <td><?php echo esc_html($type->selling_price); ?></td>
-                                    <td><?php echo esc_html($type->billing_cycle); ?></td>
-                                    <td><?php echo esc_html($type->billing_frequency); ?></td>
+                                    <td><?php echo esc_html($type->billing_cycle ?? 'monthly'); ?></td>
+                                    <td><?php echo esc_html($type->billing_frequency ?? 1); ?></td>
+                                    <td><input type="checkbox" disabled <?php echo (!isset($type->show_in_main) || intval($type->show_in_main) === 1) ? 'checked' : ''; ?>></td>
+                                    <td><button type="button" class="m365-btn m365-btn-small m365-btn-secondary license-type-edit">ערוך</button></td>
                                 </tr>
                             <?php endforeach; ?>
                         <?php else : ?>
                             <tr>
-                                <td colspan="6" class="no-data">אין סוגי רישיונות מוגדרים</td>
+                                <td colspan="9" class="no-data">אין סוגי רישיונות מוגדרים</td>
                             </tr>
                         <?php endif; ?>
                     </tbody>
@@ -256,6 +271,56 @@
                 </div>
             </form>
         </div>
+    </div>
+</div>
+
+<div id="license-type-modal" class="m365-modal">
+    <div class="m365-modal-content">
+        <span class="m365-modal-close">&times;</span>
+        <h3>עריכת סוג רישיון</h3>
+        <form id="kbbm-license-type-form">
+            <div class="form-group">
+                <label>SKU</label>
+                <input type="text" id="license-type-sku" name="sku" readonly>
+            </div>
+            <div class="form-group">
+                <label>שם רישיון (API)</label>
+                <input type="text" id="license-type-name" name="name" required>
+            </div>
+            <div class="form-group">
+                <label>שם לתצוגה</label>
+                <input type="text" id="license-type-display-name" name="display_name">
+            </div>
+            <div class="form-group">
+                <label>מחיר רכישה</label>
+                <input type="number" step="0.01" id="license-type-cost" name="cost_price">
+            </div>
+            <div class="form-group">
+                <label>מחיר ללקוח</label>
+                <input type="number" step="0.01" id="license-type-selling" name="selling_price">
+            </div>
+            <div class="form-group">
+                <label>חודשי/שנתי</label>
+                <select id="license-type-cycle" name="billing_cycle">
+                    <option value="monthly">monthly</option>
+                    <option value="yearly">yearly</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>תדירות</label>
+                <input type="number" id="license-type-frequency" name="billing_frequency" min="1" value="1">
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="license-type-show" name="show_in_main" checked>
+                    להציג בטבלה הראשית
+                </label>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="m365-btn m365-btn-primary">שמור</button>
+                <button type="button" class="m365-btn m365-btn-secondary m365-modal-cancel">ביטול</button>
+            </div>
+        </form>
     </div>
 </div>
 

@@ -7,8 +7,9 @@ $settings_url = 'https://kb.macomp.co.il/?page_id=14292';
 $logs_url     = 'https://kb.macomp.co.il/?page_id=14285';
 $active       = isset($active) ? $active : '';
 
+// Billing period input removed from header per user request; keep defaults for downstream use if present
 $current_billing_period = isset($_GET['billing_period']) ? sanitize_text_field(wp_unslash($_GET['billing_period'])) : '';
-$billing_period_label = $current_billing_period !== '' ? $current_billing_period : '—';
+$billing_period_label = $current_billing_period !== '' ? $current_billing_period : '';
 
 $grouped_customers = array();
 
@@ -41,11 +42,6 @@ if (!empty($licenses)) {
     <div class="m365-header">
         <div class="m365-header-left">
             <h2>ניהול רישיונות Microsoft 365</h2>
-            <form method="get" class="kbbm-period-form">
-                <label for="kbbm-billing-period">מחזור חיוב</label>
-                <input type="text" id="kbbm-billing-period" name="billing_period" value="<?php echo esc_attr($current_billing_period); ?>" placeholder="למשל: אפריל">
-                <button type="submit" class="m365-btn m365-btn-secondary">עדכן</button>
-            </form>
         </div>
         <div class="m365-actions">
             <form method="get" class="kbbm-period-form">
@@ -62,7 +58,7 @@ if (!empty($licenses)) {
                 <?php endforeach; ?>
             </select>
             <button id="sync-licenses" class="m365-btn m365-btn-primary">סנכרון רישיונות</button>
-            <button id="add-license" class="m365-btn m365-btn-success">הוסף רישיון ידני</button>
+            <button id="sync-all-licenses" class="m365-btn m365-btn-secondary">סנכרון הכל</button>
         </div>
     </div>
 
@@ -113,7 +109,7 @@ if (!empty($licenses)) {
                         $has_customer_number = !empty($customer['customer_number']);
                         $has_customer_name   = !empty($customer['customer_name']);
                         $has_tenant_domain   = !empty($customer['tenant_domain']);
-                        $has_billing_period  = $billing_period_label !== '—';
+                        $has_billing_period  = !empty($billing_period_label);
                         $has_total_charges   = $total_charges > 0;
                     ?>
                     <tr class="customer-summary" data-customer="<?php echo esc_attr($cid); ?>">
