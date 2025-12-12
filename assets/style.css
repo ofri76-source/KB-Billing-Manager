@@ -2,7 +2,7 @@
 .m365-lm-container {
     direction: rtl;
     width: 100%;
-    max-width: 1400px;
+    max-width: 100%;
     margin: 20px auto;
     padding: 20px;
     background: #fff;
@@ -636,6 +636,39 @@
 .kbbm-log-table th {
     background: #f0f0f0;
     text-align: right;
+    position: relative;
+}
+.kbbm-log-table th .kbbm-log-header-filter {
+    margin-top: 6px;
+    display: none;
+}
+.kbbm-log-table th .kbbm-log-header-filter select {
+    width: 100%;
+    font-size: 12px;
+}
+.kbbm-log-table th.filter-open .kbbm-log-header-filter {
+    display: block;
+}
+.kbbm-log-header-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    justify-content: space-between;
+}
+
+.kbbm-log-filter-toggle {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 12px;
+    color: #555;
+    line-height: 1;
+    padding: 2px 4px;
+}
+
+.kbbm-log-filter-toggle:focus-visible {
+    outline: 1px solid #0078d4;
+    outline-offset: 2px;
 }
 .kbbm-log-table th .kbbm-log-header-filter {
     margin-top: 6px;
@@ -699,35 +732,29 @@
 
 .kb-logs-table th.col-message,
 .kb-logs-table td.col-message {
-    width: 35%;
+    width: 50%;
     max-width: none;
 }
 
 .kb-logs-table th.col-tenant-domain,
-.kb-logs-table td.col-tenant-domain {
-    width: 15%;
-}
-
+.kb-logs-table td.col-tenant-domain,
 .kb-logs-table th.col-customer-name,
 .kb-logs-table td.col-customer-name,
 .kb-logs-table th.col-customer-number,
 .kb-logs-table td.col-customer-number {
-    width: 15%;
+    width: 10%;
 }
 
 .kb-logs-table th.col-context,
-.kb-logs-table td.col-context {
-    width: 10%;
-}
-
+.kb-logs-table td.col-context,
 .kb-logs-table th.col-level,
 .kb-logs-table td.col-level {
-    width: 10%;
+    width: 8%;
 }
 
 .kb-logs-table th.col-time,
 .kb-logs-table td.col-time {
-    width: 15%;
+    width: 14%;
 }
 
 

@@ -593,6 +593,7 @@ jQuery(document).ready(function($) {
         const logSearch = $('#kbbm-log-search-input');
         const logFilters = $('.kbbm-log-filter');
         const columnFilters = [];
+        const headerToggles = logTable.find('.kbbm-log-filter-toggle');
         let sortState = { index: 0, dir: 'desc' };
 
         logHeaders.each(function() {
@@ -608,7 +609,8 @@ jQuery(document).ready(function($) {
                 }
             });
 
-            header.append($('<div class="kbbm-log-header-filter"></div>').append(select));
+            const filterWrapper = $('<div class="kbbm-log-header-filter"></div>').append(select);
+            header.append(filterWrapper);
             columnFilters.push(select);
         });
 
@@ -679,9 +681,29 @@ jQuery(document).ready(function($) {
             tbody.append(rows);
         }
 
-        logHeaders.on('click', function() {
+        logHeaders.on('click', function(event) {
+            if ($(event.target).closest('.kbbm-log-header-filter, .kbbm-log-filter-toggle').length) {
+                return;
+            }
             sortLogTable($(this).index());
             applyLogFilters();
+        });
+
+        headerToggles.on('click keydown', function(event) {
+            if (event.type === 'keydown' && event.key !== 'Enter' && event.key !== ' ') {
+                return;
+            }
+            event.preventDefault();
+            event.stopPropagation();
+            const th = $(this).closest('th');
+            const isOpen = th.hasClass('filter-open');
+            logHeaders.removeClass('filter-open');
+            th.toggleClass('filter-open', !isOpen);
+
+            const select = th.find('.kbbm-log-header-filter select');
+            if (!isOpen && select.length) {
+                select.focus();
+            }
         });
 
         logSearch.on('input', applyLogFilters);

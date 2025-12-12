@@ -335,13 +335,48 @@ class M365_LM_Shortcodes {
                     <table class="m365-table kbbm-log-table kb-logs-table">
                         <thead>
                             <tr>
-                                <th class="sortable col-time" data-column="time">זמן</th>
-                                <th class="sortable col-level" data-column="level">Level</th>
-                                <th class="sortable col-context" data-column="context">Context</th>
-                                <th class="sortable col-customer-number" data-column="customer_number">מספר לקוח</th>
-                                <th class="sortable col-customer-name" data-column="customer_name">שם לקוח</th>
-                                <th class="sortable col-tenant-domain" data-column="tenant_domain">Tenant Domain</th>
-                                <th class="sortable col-message" data-column="message">הודעה</th>
+                                <th class="sortable col-time has-filter" data-column="time">
+                                    <div class="kbbm-log-header-title">
+                                        <span class="title">זמן</span>
+                                        <button type="button" class="kbbm-log-filter-toggle" aria-label="סינון זמן">▼</button>
+                                    </div>
+                                </th>
+                                <th class="sortable col-level has-filter" data-column="level">
+                                    <div class="kbbm-log-header-title">
+                                        <span class="title">Level</span>
+                                        <button type="button" class="kbbm-log-filter-toggle" aria-label="סינון Level">▼</button>
+                                    </div>
+                                </th>
+                                <th class="sortable col-context has-filter" data-column="context">
+                                    <div class="kbbm-log-header-title">
+                                        <span class="title">Context</span>
+                                        <button type="button" class="kbbm-log-filter-toggle" aria-label="סינון Context">▼</button>
+                                    </div>
+                                </th>
+                                <th class="sortable col-customer-number has-filter" data-column="customer_number">
+                                    <div class="kbbm-log-header-title">
+                                        <span class="title">מספר לקוח</span>
+                                        <button type="button" class="kbbm-log-filter-toggle" aria-label="סינון מספר לקוח">▼</button>
+                                    </div>
+                                </th>
+                                <th class="sortable col-customer-name has-filter" data-column="customer_name">
+                                    <div class="kbbm-log-header-title">
+                                        <span class="title">שם לקוח</span>
+                                        <button type="button" class="kbbm-log-filter-toggle" aria-label="סינון שם לקוח">▼</button>
+                                    </div>
+                                </th>
+                                <th class="sortable col-tenant-domain has-filter" data-column="tenant_domain">
+                                    <div class="kbbm-log-header-title">
+                                        <span class="title">Tenant Domain</span>
+                                        <button type="button" class="kbbm-log-filter-toggle" aria-label="סינון Tenant Domain">▼</button>
+                                    </div>
+                                </th>
+                                <th class="sortable col-message has-filter" data-column="message">
+                                    <div class="kbbm-log-header-title">
+                                        <span class="title">הודעה</span>
+                                        <button type="button" class="kbbm-log-filter-toggle" aria-label="סינון הודעה">▼</button>
+                                    </div>
+                                </th>
                             </tr>
                         </thead>
                         <tbody>

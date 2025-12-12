@@ -137,7 +137,7 @@ class M365_LM_Database {
         dbDelta($sql_license_types);
         dbDelta($sql_logs);
 
-        self::ensure_legacy_license_schema($table_licenses);
+        self::ensure_legacy_license_schema($table_licenses, $sql_licenses);
         self::maybe_add_column($kb_licenses_table, 'billing_account', "billing_account VARCHAR(255) DEFAULT NULL AFTER sku");
         self::maybe_add_column($kb_licenses_table, 'renewal_date', "renewal_date DATE DEFAULT NULL AFTER billing_frequency");
         self::maybe_add_column($kb_licenses_table, 'notes', "notes TEXT NULL AFTER renewal_date");
@@ -445,20 +445,35 @@ class M365_LM_Database {
     /**
      * Ensures the legacy licenses table contains the required columns and logs if repairs fail.
      */
-    private static function ensure_legacy_license_schema($table_licenses) {
+    private static function ensure_legacy_license_schema($table_licenses, $create_sql) {
         global $wpdb;
 
         $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_licenses)) === $table_licenses;
 
         if (!$table_exists) {
+            require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+            dbDelta($create_sql);
+
+            $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_licenses)) === $table_licenses;
+
+            if (!$table_exists) {
+                self::log_event(
+                    'error',
+                    'schema_check',
+                    'Legacy license table is missing and could not be created automatically; recreate the plugin tables.',
+                    null,
+                    array('table' => $table_licenses, 'db_error' => $wpdb->last_error)
+                );
+                return;
+            }
+
             self::log_event(
                 'error',
                 'schema_check',
-                'Legacy license table is missing; recreate the plugin tables.',
+                'Legacy license table was missing; attempted automatic creation.',
                 null,
                 array('table' => $table_licenses)
             );
-            return;
         }
 
         $required_columns = array(
@@ -478,24 +493,49 @@ class M365_LM_Database {
         );
 
         foreach ($required_columns as $column => $definition) {
+            $before = $wpdb->query("SHOW COLUMNS FROM {$table_licenses} LIKE '" . esc_sql($column) . "'");
             self::maybe_add_column($table_licenses, $column, $definition);
+            $after = $wpdb->query("SHOW COLUMNS FROM {$table_licenses} LIKE '" . esc_sql($column) . "'");
+
+            if ($before === 0 && $after === 0) {
+                self::log_event(
+                    'error',
+                    'schema_check',
+                    'Failed to add required legacy license column.',
+                    null,
+                    array(
+                        'table'           => $table_licenses,
+                        'column'          => $column,
+                        'definition'      => $definition,
+                        'sql_error'       => $wpdb->last_error,
+                        'current_columns' => $wpdb->get_col("SHOW COLUMNS FROM {$table_licenses}")
+                    )
+                );
+            }
         }
 
         $current_columns = $wpdb->get_col("SHOW COLUMNS FROM {$table_licenses}");
         $missing = array_values(array_diff(array_keys($required_columns), $current_columns));
 
         if (!empty($missing)) {
-            self::log_event(
-                'error',
-                'schema_check',
-                'Legacy license table is missing required columns; please drop and recreate or add them manually.',
-                null,
-                array(
-                    'table'            => $table_licenses,
-                    'missing_columns'  => $missing,
-                    'instructions'     => 'DROP TABLE and reactivate the plugin, or run ALTER TABLE to add the missing columns.',
-                )
-            );
+            require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+            dbDelta($create_sql);
+            $current_columns = $wpdb->get_col("SHOW COLUMNS FROM {$table_licenses}");
+            $still_missing = array_values(array_diff(array_keys($required_columns), $current_columns));
+
+            if (!empty($still_missing)) {
+                self::log_event(
+                    'error',
+                    'schema_check',
+                    'Legacy license table is missing required columns; please drop and recreate or add them manually.',
+                    null,
+                    array(
+                        'table'            => $table_licenses,
+                        'missing_columns'  => $still_missing,
+                        'instructions'     => 'DROP TABLE and reactivate the plugin, or run ALTER TABLE to add the missing columns.',
+                    )
+                );
+            }
         }
     }
 }
