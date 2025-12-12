@@ -28,9 +28,17 @@ add_action('admin_post_nopriv_kbbm_download_script', 'kbbm_download_script_handl
 register_activation_hook(__FILE__, 'kb_billing_manager_activate');
 register_deactivation_hook(__FILE__, 'm365_lm_deactivate');
 
+// תיקון סכימה גם לאחר שדרוגים
+add_action('admin_init', 'kb_billing_manager_maybe_install');
+
 function kb_billing_manager_activate() {
     M365_LM_Database::create_tables();
     flush_rewrite_rules();
+}
+
+function kb_billing_manager_maybe_install() {
+    // מריץ את יצירת/תיקון הטבלאות גם לאחר שדרוגים כדי להוסיף עמודות חסרות
+    M365_LM_Database::create_tables();
 }
 
 // שמירה על תאימות לאחור
