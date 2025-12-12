@@ -39,7 +39,14 @@ if (!empty($licenses)) {
     </div>
 
     <div class="m365-header">
-        <h2>ניהול רישיונות Microsoft 365</h2>
+        <div class="m365-header-left">
+            <h2>ניהול רישיונות Microsoft 365</h2>
+            <form method="get" class="kbbm-period-form">
+                <label for="kbbm-billing-period">מחזור חיוב</label>
+                <input type="text" id="kbbm-billing-period" name="billing_period" value="<?php echo esc_attr($current_billing_period); ?>" placeholder="למשל: אפריל">
+                <button type="submit" class="m365-btn m365-btn-secondary">עדכן</button>
+            </form>
+        </div>
         <div class="m365-actions">
             <form method="get" class="kbbm-period-form">
                 <label for="kbbm-billing-period">מחזור חיוב</label>
@@ -72,10 +79,10 @@ if (!empty($licenses)) {
                     <th colspan="2">סה"כ חיובים</th>
                 </tr>
                 <tr class="plans-header-row">
-                    <th>תוכניות ללקוח</th>
+                    <th>תוכנית ללקוח</th>
                     <th>חשבון חיוב</th>
                     <th>מחיר ללקוח</th>
-                    <th>מחיר לנו</th>
+                    <th>מחיר רכישה</th>
                     <th>סה"כ נרכש</th>
                     <th>סה"כ בשימוש</th>
                     <th>סה"כ פנוי</th>
@@ -102,12 +109,19 @@ if (!empty($licenses)) {
                             }
                         }
                     ?>
+                    <?php
+                        $has_customer_number = !empty($customer['customer_number']);
+                        $has_customer_name   = !empty($customer['customer_name']);
+                        $has_tenant_domain   = !empty($customer['tenant_domain']);
+                        $has_billing_period  = $billing_period_label !== '—';
+                        $has_total_charges   = $total_charges > 0;
+                    ?>
                     <tr class="customer-summary" data-customer="<?php echo esc_attr($cid); ?>">
-                        <td colspan="2"><?php echo esc_html($customer['customer_number']); ?></td>
-                        <td colspan="2"><?php echo esc_html($customer['customer_name']); ?></td>
-                        <td colspan="2"><?php echo esc_html($customer['tenant_domain']); ?></td>
-                        <td colspan="2"><?php echo esc_html($billing_period_label); ?></td>
-                        <td colspan="2"><?php echo number_format($total_charges, 2); ?></td>
+                        <td colspan="2" class="<?php echo $has_customer_number ? '' : 'kbbm-empty-summary'; ?>"><?php echo $has_customer_number ? esc_html($customer['customer_number']) : ''; ?></td>
+                        <td colspan="2" class="<?php echo $has_customer_name ? '' : 'kbbm-empty-summary'; ?>"><?php echo $has_customer_name ? esc_html($customer['customer_name']) : ''; ?></td>
+                        <td colspan="2" class="<?php echo $has_tenant_domain ? '' : 'kbbm-empty-summary'; ?>"><?php echo $has_tenant_domain ? esc_html($customer['tenant_domain']) : ''; ?></td>
+                        <td colspan="2" class="<?php echo $has_billing_period ? '' : 'kbbm-empty-summary'; ?>"><?php echo $has_billing_period ? esc_html($billing_period_label) : ''; ?></td>
+                        <td colspan="2" class="<?php echo $has_total_charges ? '' : 'kbbm-empty-summary'; ?>"><?php echo $has_total_charges ? number_format($total_charges, 2) : ''; ?></td>
                     </tr>
                     <?php foreach ($customer['licenses'] as $license): ?>
                         <?php
@@ -129,8 +143,8 @@ if (!empty($licenses)) {
                         >
                             <td class="plan-name" data-field="plan_name"><?php echo esc_html($license->plan_name); ?></td>
                             <td data-field="billing_account"><?php echo esc_html($license->billing_account); ?></td>
-                            <td data-field="selling_price"><?php echo esc_html($license->selling_price); ?></td>
-                            <td data-field="cost_price"><?php echo esc_html($license->cost_price); ?></td>
+                            <td class="editable-price" data-field="selling_price"><?php echo esc_html($license->selling_price); ?></td>
+                            <td class="editable-price" data-field="cost_price"><?php echo esc_html($license->cost_price); ?></td>
                             <td data-field="total_purchased"><?php echo esc_html($total_purchased); ?></td>
                             <td data-field="consumed_units"><?php echo esc_html($license->consumed_units); ?></td>
                             <td data-field="available_units"><?php echo esc_html($available); ?></td>

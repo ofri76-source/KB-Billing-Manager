@@ -23,6 +23,7 @@
     <div class="m365-settings-tabs">
         <button class="m365-tab-btn active" data-tab="customers">ניהול לקוחות</button>
         <button class="m365-tab-btn" data-tab="api-setup">הגדרת API</button>
+        <button class="m365-tab-btn" data-tab="license-types">סוגי רישיונות</button>
         <button class="m365-tab-btn" data-tab="log-settings">הגדרות לוגים</button>
     </div>
 
@@ -198,8 +199,13 @@
                 </ol>
             </div>
         </div>
+    </div>
+
+    <!-- טאב סוגי רישיונות -->
+    <div class="m365-tab-content" id="license-types-tab">
         <div class="m365-section">
-            <h3>סוגי רישיונות</h3>
+            <h3>סוגי רישיונות (מחירי ברירת מחדל)</h3>
+            <p class="section-hint">טבלה זו משמשת לעדכון מחירי ברירת המחדל בלבד ואינה חלק מתצוגת הרישיונות ללקוחות.</p>
             <div class="m365-table-wrapper">
                 <table class="m365-table">
                     <thead>

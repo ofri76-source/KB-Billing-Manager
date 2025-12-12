@@ -33,16 +33,38 @@
 .m365-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
     margin-bottom: 30px;
     padding-bottom: 20px;
     border-bottom: 2px solid #0078d4;
+}
+
+.m365-header-left {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 }
 
 .m365-header h2 {
     margin: 0;
     color: #0078d4;
     font-size: 28px;
+}
+
+.kbbm-period-form {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.kbbm-period-form label {
+    margin: 0;
+    font-weight: 600;
+    color: #323130;
+}
+
+.kbbm-empty-summary {
+    opacity: 0;
 }
 
 .m365-actions {
@@ -183,18 +205,6 @@
     justify-content: center;
 }
 
-.kbbm-period-form {
-    display: flex;
-    align-items: flex-end;
-    gap: 8px;
-    margin-left: 12px;
-}
-
-.kbbm-period-form label {
-    font-weight: 600;
-    color: #323130;
-}
-
 .kbbm-report-table thead .customer-header-row {
     background-color: #003b75;
     color: #fff;
@@ -223,6 +233,16 @@
 
 .kbbm-report-table tbody tr.license-row:nth-of-type(odd) {
     background-color: #f6f9ff;
+}
+
+.kbbm-report-table td.editable-price {
+    cursor: pointer;
+}
+
+.inline-price-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 6px 8px;
 }
 
 .kb-notes-row .kb-notes-cell {
@@ -558,6 +578,11 @@
 .m365-section h3 {
     margin-top: 0;
     color: #323130;
+}
+
+.section-hint {
+    margin-top: 0;
+    color: #605e5c;
 }
 
 .m365-info-box {

@@ -116,6 +116,86 @@ jQuery(document).ready(function($) {
         $('#edit-license-modal').fadeIn();
     });
 
+    function buildLicensePayloadFromRow(row) {
+        return {
+            action: 'm365_save_license',
+            nonce: m365Ajax.nonce,
+            id: row.data('id') || 0,
+            customer_id: row.data('customer') || '',
+            plan_name: row.find('.plan-name').text().trim(),
+            billing_account: row.find('[data-field="billing_account"]').text().trim(),
+            cost_price: parseFloat(row.find('[data-field="cost_price"]').text()) || 0,
+            selling_price: parseFloat(row.find('[data-field="selling_price"]').text()) || 0,
+            quantity: row.data('quantity') || row.data('enabled') || 0,
+            billing_cycle: row.data('billing-cycle') || 'monthly',
+            billing_frequency: row.data('billing-frequency') || '',
+            renewal_date: row.find('[data-field="renewal_date"]').text().trim(),
+            notes: row.data('notes') || ''
+        };
+    }
+
+    $('.kbbm-report-table').on('click', '.editable-price', function(event) {
+        event.stopPropagation();
+        const cell = $(this);
+        const row = cell.closest('tr');
+
+        if (cell.find('input').length) {
+            return;
+        }
+
+        const currentValue = cell.text().trim();
+        const field = cell.data('field');
+        const input = $('<input type="number" step="0.01" class="inline-price-input" />').val(currentValue);
+
+        cell.addClass('editing');
+        cell.empty().append(input);
+        input.trigger('focus').select();
+
+        function finishEdit(cancel) {
+            const newValue = cancel ? currentValue : input.val();
+            cell.removeClass('editing');
+            cell.text(newValue);
+        }
+
+        input.on('keydown', function(e) {
+            if (e.key === 'Escape') {
+                finishEdit(true);
+            }
+
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                input.trigger('blur');
+            }
+        });
+
+        input.on('blur', function() {
+            const newValue = input.val();
+            const payload = buildLicensePayloadFromRow(row);
+            payload[field] = parseFloat(newValue) || 0;
+
+            $.ajax({
+                url: m365Ajax.ajaxurl,
+                type: 'POST',
+                data: payload,
+                success: function(response) {
+                    if (response && response.success) {
+                        cell.text(payload[field]);
+                    } else {
+                        showMessage('error', 'שמירת המחיר נכשלה');
+                        cell.text(currentValue);
+                    }
+                },
+                error: function() {
+                    showMessage('error', 'שמירת המחיר נכשלה');
+                    cell.text(currentValue);
+                },
+                complete: function() {
+                    cell.removeClass('editing');
+                }
+            });
+        });
+    });
+
     // שמירת רישיון
     $('#edit-license-form').on('submit', function(e) {
         e.preventDefault();
