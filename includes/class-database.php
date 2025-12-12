@@ -17,6 +17,9 @@ class M365_LM_Database {
             client_id varchar(255) DEFAULT NULL,
             client_secret text DEFAULT NULL,
             tenant_domain varchar(255) DEFAULT NULL,
+            partner_customer_id varchar(64) DEFAULT NULL,
+            source enum('manual','partner') NOT NULL DEFAULT 'manual',
+            last_partner_sync datetime DEFAULT NULL,
             last_connection_status varchar(20) DEFAULT 'unknown',
             last_connection_message text DEFAULT NULL,
             last_connection_time datetime DEFAULT NULL,
@@ -36,6 +39,9 @@ class M365_LM_Database {
             client_id varchar(255) DEFAULT NULL,
             client_secret text DEFAULT NULL,
             tenant_domain varchar(255) DEFAULT NULL,
+            partner_customer_id varchar(64) DEFAULT NULL,
+            source enum('manual','partner') NOT NULL DEFAULT 'manual',
+            last_partner_sync datetime DEFAULT NULL,
             last_connection_status varchar(20) DEFAULT 'unknown',
             last_connection_message text DEFAULT NULL,
             last_connection_time datetime DEFAULT NULL,
@@ -140,6 +146,8 @@ class M365_LM_Database {
         dbDelta($sql_logs);
 
         self::ensure_legacy_license_schema($table_licenses, $sql_licenses);
+        self::ensure_partner_customer_schema($table_customers);
+        self::ensure_partner_customer_schema($kb_customers_table);
         self::maybe_add_column($kb_licenses_table, 'billing_account', "billing_account VARCHAR(255) DEFAULT NULL AFTER sku");
         self::maybe_add_column($kb_licenses_table, 'renewal_date', "renewal_date DATE DEFAULT NULL AFTER billing_frequency");
         self::maybe_add_column($kb_licenses_table, 'notes', "notes TEXT NULL AFTER renewal_date");
@@ -171,6 +179,79 @@ class M365_LM_Database {
             $wpdb->insert($table, $data);
             return $wpdb->insert_id;
         }
+    }
+
+    public static function get_customers_by_source($source = 'partner') {
+        global $wpdb;
+        $table = self::get_customers_table_name();
+
+        if (!$wpdb->get_var($wpdb->prepare("SHOW COLUMNS FROM {$table} LIKE %s", 'source'))) {
+            return array();
+        }
+
+        return $wpdb->get_results(
+            $wpdb->prepare("SELECT * FROM {$table} WHERE source = %s", sanitize_text_field($source))
+        );
+    }
+
+    public static function upsert_customer_from_partner($partner_customer_id, $data = array()) {
+        global $wpdb;
+
+        $table = self::get_customers_table_name();
+        self::ensure_partner_customer_schema($table);
+
+        $partner_customer_id = sanitize_text_field($partner_customer_id);
+        $tenant_domain       = isset($data['tenant_domain']) ? sanitize_text_field($data['tenant_domain']) : '';
+        $tenant_id           = isset($data['tenant_id']) ? sanitize_text_field($data['tenant_id']) : '';
+        $customer_name       = isset($data['customer_name']) ? sanitize_text_field($data['customer_name']) : '';
+        $customer_number     = isset($data['customer_number']) ? sanitize_text_field($data['customer_number']) : '';
+
+        $existing = null;
+
+        if (!empty($partner_customer_id)) {
+            $existing = $wpdb->get_row(
+                $wpdb->prepare("SELECT * FROM {$table} WHERE partner_customer_id = %s LIMIT 1", $partner_customer_id)
+            );
+        }
+
+        if (!$existing && !empty($tenant_domain)) {
+            $existing = $wpdb->get_row(
+                $wpdb->prepare("SELECT * FROM {$table} WHERE tenant_domain = %s LIMIT 1", $tenant_domain)
+            );
+        }
+
+        if (!$existing && !empty($tenant_id)) {
+            $existing = $wpdb->get_row(
+                $wpdb->prepare("SELECT * FROM {$table} WHERE tenant_id = %s LIMIT 1", $tenant_id)
+            );
+        }
+
+        $fallback_number = !empty($partner_customer_id)
+            ? 'partner-' . substr(md5($partner_customer_id), 0, 8)
+            : 'partner-' . wp_generate_password(6, false);
+
+        $payload = array(
+            'partner_customer_id' => !empty($partner_customer_id) ? $partner_customer_id : null,
+            'tenant_domain'       => !empty($tenant_domain) ? $tenant_domain : ($existing->tenant_domain ?? ''),
+            'tenant_id'           => !empty($tenant_id) ? $tenant_id : ($existing->tenant_id ?? ''),
+            'customer_name'       => !empty($customer_name) ? $customer_name : ($existing->customer_name ?? ($tenant_domain ?: $partner_customer_id)),
+            'customer_number'     => !empty($customer_number) ? $customer_number : ($existing->customer_number ?? $fallback_number),
+            'source'              => 'partner',
+            'last_partner_sync'   => current_time('mysql'),
+        );
+
+        // Ensure required NOT NULL fields have fallbacks
+        if (empty($payload['tenant_id'])) {
+            $payload['tenant_id'] = !empty($partner_customer_id) ? $partner_customer_id : $payload['customer_number'];
+        }
+
+        if ($existing && isset($existing->id)) {
+            $wpdb->update($table, $payload, array('id' => intval($existing->id)));
+            return array('id' => intval($existing->id), 'action' => 'updated');
+        }
+
+        $wpdb->insert($table, $payload);
+        return array('id' => intval($wpdb->insert_id), 'action' => 'inserted');
     }
     
     // פונקציות CRUD לרישיונות
@@ -292,6 +373,12 @@ class M365_LM_Database {
         return $wpdb->get_results(
             $wpdb->prepare("SELECT sku, name, display_name, show_in_main, default_cost_price AS cost_price, default_selling_price AS selling_price, default_billing_cycle AS billing_cycle, default_billing_frequency AS billing_frequency FROM {$types_table} WHERE is_active = %d ORDER BY name", 1)
         );
+
+        if ($existing && isset($existing->id)) {
+            return $wpdb->update($types_table, $payload, array('id' => $existing->id));
+        }
+
+        return $wpdb->insert($types_table, $payload);
     }
 
     /**
@@ -631,6 +718,52 @@ class M365_LM_Database {
         if ($table_exists && !$column_exists) {
             $wpdb->query("ALTER TABLE {$table} ADD COLUMN {$definition}");
         }
+    }
+
+    public static function save_partner_settings($settings) {
+        update_option('kbbm_partner_enabled', !empty($settings['enabled']) ? 1 : 0);
+        update_option('kbbm_partner_tenant_id', isset($settings['tenant_id']) ? sanitize_text_field($settings['tenant_id']) : '');
+        update_option('kbbm_partner_client_id', isset($settings['client_id']) ? sanitize_text_field($settings['client_id']) : '');
+        if (isset($settings['client_secret']) && $settings['client_secret'] !== '') {
+            update_option('kbbm_partner_client_secret', $settings['client_secret']);
+        }
+    }
+
+    public static function get_partner_settings() {
+        return array(
+            'enabled'       => (bool) get_option('kbbm_partner_enabled', false),
+            'tenant_id'     => sanitize_text_field(get_option('kbbm_partner_tenant_id', '')),
+            'client_id'     => sanitize_text_field(get_option('kbbm_partner_client_id', '')),
+            'client_secret' => get_option('kbbm_partner_client_secret', ''),
+        );
+    }
+
+    public static function set_partner_import_status($status) {
+        update_option('kbbm_partner_import_status', $status);
+    }
+
+    public static function get_partner_import_status() {
+        $status = get_option('kbbm_partner_import_status', array());
+        return is_array($status) ? $status : array();
+    }
+
+    public static function set_partner_bulk_sync_status($status) {
+        update_option('kbbm_partner_bulk_sync_status', $status);
+    }
+
+    public static function get_partner_bulk_sync_status() {
+        $status = get_option('kbbm_partner_bulk_sync_status', array());
+        return is_array($status) ? $status : array();
+    }
+
+    /**
+     * Additive partner customer fields for legacy and KB customer tables.
+     */
+    private static function ensure_partner_customer_schema($table) {
+        self::maybe_add_column($table, 'partner_customer_id', "partner_customer_id VARCHAR(64) NULL AFTER tenant_domain");
+        self::maybe_add_column($table, 'source', "source ENUM('manual','partner') NOT NULL DEFAULT 'manual' AFTER partner_customer_id");
+        self::maybe_add_column($table, 'last_partner_sync', "last_partner_sync DATETIME NULL AFTER source");
+        // tenant_id is already present on most installs; leave untouched to avoid breaking changes.
     }
 
     /**

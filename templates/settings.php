@@ -26,6 +26,7 @@
         <button class="m365-tab-btn active" data-tab="customers">ניהול לקוחות</button>
         <button class="m365-tab-btn" data-tab="api-setup">הגדרת API</button>
         <button class="m365-tab-btn" data-tab="license-types">סוגי רישיונות</button>
+        <button class="m365-tab-btn" data-tab="partner-sync">Partner Sync</button>
         <button class="m365-tab-btn" data-tab="log-settings">הגדרות לוגים</button>
     </div>
 
@@ -252,6 +253,48 @@
                         <?php endif; ?>
                     </tbody>
                 </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="m365-tab-content" id="partner-sync-tab">
+        <div class="m365-section">
+            <h3>Partner Sync</h3>
+            <form id="kbbm-partner-settings-form" class="kbbm-partner-form">
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="kbbm-partner-enabled" name="partner_enabled" <?php echo !empty($partner_settings['enabled']) ? 'checked' : ''; ?>>
+                        Enable Partner Mode
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label>Partner Tenant ID</label>
+                    <input type="text" id="kbbm-partner-tenant" name="partner_tenant_id" value="<?php echo esc_attr($partner_settings['tenant_id'] ?? ''); ?>">
+                </div>
+                <div class="form-group">
+                    <label>Partner Client ID</label>
+                    <input type="text" id="kbbm-partner-client" name="partner_client_id" value="<?php echo esc_attr($partner_settings['client_id'] ?? ''); ?>">
+                </div>
+                <div class="form-group">
+                    <label>Partner Client Secret</label>
+                    <input type="password" id="kbbm-partner-secret" name="partner_client_secret" value="<?php echo esc_attr($partner_settings['client_secret'] ?? ''); ?>" autocomplete="new-password">
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="m365-btn m365-btn-primary">שמור הגדרות Partner</button>
+                </div>
+            </form>
+
+            <div class="partner-actions">
+                <button id="kbbm-partner-import" class="m365-btn m365-btn-secondary">Import Customers from Partner</button>
+                <button id="kbbm-partner-bulk-sync" class="m365-btn m365-btn-secondary">Bulk Sync Licenses for Partner Customers</button>
+            </div>
+
+            <div class="partner-status">
+                <p>Imported customers: <span id="kbbm-partner-imported-count"><?php echo isset($partner_import_status['inserted']) ? intval($partner_import_status['inserted']) : 0; ?></span></p>
+                <p>Updated customers: <span id="kbbm-partner-updated-count"><?php echo isset($partner_import_status['updated']) ? intval($partner_import_status['updated']) : 0; ?></span></p>
+                <p>Last import: <span id="kbbm-partner-imported-time"><?php echo isset($partner_import_status['time']) ? esc_html($partner_import_status['time']) : '-'; ?></span></p>
+                <p>Last bulk sync: <span id="kbbm-partner-bulk-time"><?php echo isset($partner_bulk_status['time']) ? esc_html($partner_bulk_status['time']) : '-'; ?></span></p>
+                <p>Last bulk synced: <span id="kbbm-partner-bulk-count"><?php echo isset($partner_bulk_status['synced']) ? intval($partner_bulk_status['synced']) : 0; ?></span> / <span id="kbbm-partner-bulk-total"><?php echo isset($partner_bulk_status['total']) ? intval($partner_bulk_status['total']) : 0; ?></span></p>
             </div>
         </div>
     </div>

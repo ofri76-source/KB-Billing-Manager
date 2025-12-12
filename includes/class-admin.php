@@ -15,6 +15,7 @@ class M365_LM_Admin {
         add_action('wp_ajax_kbbm_generate_script', array($this, 'ajax_generate_script'));
         add_action('wp_ajax_nopriv_kbbm_generate_script', array($this, 'ajax_generate_script'));
         add_action('wp_ajax_kbbm_save_settings', array($this, 'ajax_save_settings'));
+        add_action('wp_ajax_kbbm_save_partner_settings', array($this, 'ajax_save_partner_settings'));
     }
     
     // הוספת תפריט ניהול
@@ -91,6 +92,9 @@ class M365_LM_Admin {
         $license_types = M365_LM_Database::get_license_types();
         $active = 'settings';
         $log_retention_days = M365_LM_Database::get_log_retention_days();
+        $partner_settings = M365_LM_Database::get_partner_settings();
+        $partner_import_status = M365_LM_Database::get_partner_import_status();
+        $partner_bulk_status   = M365_LM_Database::get_partner_bulk_sync_status();
         ?>
         <div class="wrap kbbm-wrap">
             <h1>ניהול לקוחות</h1>
@@ -299,6 +303,25 @@ class M365_LM_Admin {
         M365_LM_Database::prune_logs($retention_days);
 
         wp_send_json_success(array('message' => 'ההגדרות נשמרו בהצלחה', 'log_retention_days' => $retention_days));
+    }
+
+    public function ajax_save_partner_settings() {
+        check_ajax_referer('m365_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'אין הרשאה'));
+        }
+
+        $settings = array(
+            'enabled'       => isset($_POST['partner_enabled']) ? boolval($_POST['partner_enabled']) : false,
+            'tenant_id'     => isset($_POST['partner_tenant_id']) ? sanitize_text_field($_POST['partner_tenant_id']) : '',
+            'client_id'     => isset($_POST['partner_client_id']) ? sanitize_text_field($_POST['partner_client_id']) : '',
+            'client_secret' => isset($_POST['partner_client_secret']) ? sanitize_text_field($_POST['partner_client_secret']) : '',
+        );
+
+        M365_LM_Database::save_partner_settings($settings);
+
+        wp_send_json_success(array('message' => 'הגדרות Partner עודכנו')); 
     }
 }
 

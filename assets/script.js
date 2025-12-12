@@ -1031,6 +1031,102 @@ jQuery(document).ready(function($) {
         });
     });
 
+    $('#kbbm-partner-settings-form').on('submit', function(e) {
+        e.preventDefault();
+
+        $.post(m365Ajax.ajaxurl, {
+            action: 'kbbm_save_partner_settings',
+            nonce: m365Ajax.nonce,
+            partner_enabled: $('#kbbm-partner-enabled').is(':checked') ? 1 : 0,
+            partner_tenant_id: $('#kbbm-partner-tenant').val(),
+            partner_client_id: $('#kbbm-partner-client').val(),
+            partner_client_secret: $('#kbbm-partner-secret').val(),
+        }, function(response) {
+            if (response && response.success) {
+                showMessage('success', (response.data && response.data.message) ? response.data.message : 'ההגדרות נשמרו');
+            } else {
+                const msg = response && response.data && response.data.message ? response.data.message : 'שמירת הגדרות נכשלה';
+                showMessage('error', msg);
+            }
+        }).fail(function() {
+            showMessage('error', 'שגיאה בשמירת הגדרות Partner');
+        });
+    });
+
+    function updatePartnerImportStatus(summary) {
+        if (!summary) return;
+        if (summary.inserted !== undefined) {
+            $('#kbbm-partner-imported-count').text(summary.inserted);
+        }
+        if (summary.updated !== undefined) {
+            $('#kbbm-partner-updated-count').text(summary.updated);
+        }
+        if (summary.time) {
+            $('#kbbm-partner-imported-time').text(summary.time);
+        }
+    }
+
+    function updatePartnerBulkStatus(summary) {
+        if (!summary) return;
+        if (summary.time) {
+            $('#kbbm-partner-bulk-time').text(summary.time);
+        }
+        if (summary.synced !== undefined) {
+            $('#kbbm-partner-bulk-count').text(summary.synced);
+        }
+        if (summary.total !== undefined) {
+            $('#kbbm-partner-bulk-total').text(summary.total);
+        }
+    }
+
+    $('#kbbm-partner-import').on('click', function(e) {
+        e.preventDefault();
+        const btn = $(this);
+        btn.prop('disabled', true);
+
+        $.post(m365Ajax.ajaxurl, {
+            action: 'kbbm_partner_import_customers',
+            nonce: m365Ajax.nonce
+        }, function(response) {
+            if (response && response.success) {
+                const summary = response.data && response.data.summary ? response.data.summary : null;
+                updatePartnerImportStatus(summary);
+                showMessage('success', response.data && response.data.message ? response.data.message : 'ייבוא הושלם');
+            } else {
+                const msg = response && response.data && response.data.message ? response.data.message : 'ייבוא נכשל';
+                showMessage('error', msg);
+            }
+        }).fail(function() {
+            showMessage('error', 'שגיאה בייבוא מה-Partner');
+        }).always(function() {
+            btn.prop('disabled', false);
+        });
+    });
+
+    $('#kbbm-partner-bulk-sync').on('click', function(e) {
+        e.preventDefault();
+        const btn = $(this);
+        btn.prop('disabled', true);
+
+        $.post(m365Ajax.ajaxurl, {
+            action: 'kbbm_partner_bulk_sync_licenses',
+            nonce: m365Ajax.nonce
+        }, function(response) {
+            if (response && response.success) {
+                const summary = response.data && response.data.summary ? response.data.summary : null;
+                updatePartnerBulkStatus(summary);
+                showMessage('success', response.data && response.data.message ? response.data.message : 'Bulk Sync הושלם');
+            } else {
+                const msg = response && response.data && response.data.message ? response.data.message : 'Bulk Sync נכשל';
+                showMessage('error', msg);
+            }
+        }).fail(function() {
+            showMessage('error', 'שגיאה בסנכרון רישיונות Partner');
+        }).always(function() {
+            btn.prop('disabled', false);
+        });
+    });
+
     const logTable = $('.kbbm-log-table');
     if (logTable.length) {
         const logHeaders = logTable.find('th.sortable');

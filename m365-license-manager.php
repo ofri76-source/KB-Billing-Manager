@@ -18,6 +18,7 @@ define('M365_LM_PLUGIN_URL', plugin_dir_url(__FILE__));
 // טעינת קבצים נדרשים
 require_once M365_LM_PLUGIN_DIR . 'includes/class-database.php';
 require_once M365_LM_PLUGIN_DIR . 'includes/class-api-connector.php';
+require_once M365_LM_PLUGIN_DIR . 'includes/class-partner-connector.php';
 require_once M365_LM_PLUGIN_DIR . 'includes/class-shortcodes.php';
 require_once M365_LM_PLUGIN_DIR . 'includes/class-admin.php';
 
