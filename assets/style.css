@@ -45,32 +45,9 @@
     padding: 10px 20px;
 }
 
-/* Remove container padding on the main page to stretch edge-to-edge */
-body.page-id-14296 .container {
-    max-width: 100% !important;
-    padding-right: 0 !important;
-    padding-left: 0 !important;
-}
-
 .m365-table-wrapper,
 .m365-table {
     width: 100%;
-}
-
-.kbbm-details-table th.col-plan-display,
-.kbbm-details-table td.col-plan-display {
-    width: 40%;
-    max-width: 40%;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.kbbm-details-table th.col-numeric,
-.kbbm-details-table td.col-numeric {
-    width: 6%;
-    max-width: 6%;
-    text-align: center;
 }
 
 .kbbm-license-types-table th,

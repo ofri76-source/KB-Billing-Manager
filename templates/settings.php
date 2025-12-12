@@ -212,6 +212,7 @@
                 <table class="m365-table kbbm-license-types-table">
                     <thead>
                         <tr>
+                            <th>SKU</th>
                             <th>שם רישיון (API)</th>
                             <th>שם לתצוגה</th>
                             <th class="col-cost">מחיר רכישה</th>
@@ -235,6 +236,7 @@
                                     data-billing-frequency="<?php echo esc_attr($type->billing_frequency ?? 1); ?>"
                                     data-show-in-main="<?php echo isset($type->show_in_main) ? esc_attr($type->show_in_main) : 1; ?>"
                                 >
+                                    <td><?php echo esc_html($type->sku); ?></td>
                                     <td><?php echo esc_html($type->name); ?></td>
                                     <td><?php echo esc_html($type->display_name ?? $type->name); ?></td>
                                     <td class="col-cost"><?php echo esc_html($type->cost_price); ?></td>
@@ -247,7 +249,7 @@
                             <?php endforeach; ?>
                         <?php else : ?>
                             <tr>
-                                <td colspan="8" class="no-data">אין סוגי רישיונות מוגדרים</td>
+                                <td colspan="9" class="no-data">אין סוגי רישיונות מוגדרים</td>
                             </tr>
                         <?php endif; ?>
                     </tbody>
@@ -279,7 +281,10 @@
         <span class="m365-modal-close">&times;</span>
         <h3>עריכת סוג רישיון</h3>
         <form id="kbbm-license-type-form">
-            <input type="hidden" id="license-type-sku" name="sku">
+            <div class="form-group">
+                <label>SKU</label>
+                <input type="text" id="license-type-sku" name="sku" readonly>
+            </div>
             <div class="form-group">
                 <label>שם רישיון (API)</label>
                 <input type="text" id="license-type-name" name="name" required>
