@@ -4,6 +4,7 @@
         $recycle_url    = 'https://kb.macomp.co.il/?page_id=14291';
         $settings_url   = 'https://kb.macomp.co.il/?page_id=14292';
         $logs_url       = 'https://kb.macomp.co.il/?page_id=14285';
+        $alerts_url     = 'https://kb.macomp.co.il/?page_id=14290';
         $active         = isset($active) ? $active : '';
         $license_types  = isset($license_types) ? $license_types : array();
         $log_retention_days = isset($log_retention_days) ? intval($log_retention_days) : 120;
@@ -13,6 +14,7 @@
         <a href="<?php echo esc_url($recycle_url); ?>" class="<?php echo $active === 'recycle' ? 'active' : ''; ?>">סל מחזור</a>
         <a href="<?php echo esc_url($settings_url); ?>" class="<?php echo $active === 'settings' ? 'active' : ''; ?>">הגדרות</a>
             <a href="<?php echo esc_url($logs_url); ?>" class="<?php echo $active === 'logs' ? 'active' : ''; ?>">לוגים</a>
+            <a href="<?php echo esc_url($alerts_url); ?>" class="<?php echo $active === 'alerts' ? 'active' : ''; ?>">התראות</a>
     </div>
     <div class="m365-header">
         <h2>הגדרות</h2>
@@ -213,12 +215,12 @@
                             <th>SKU</th>
                             <th>שם רישיון (API)</th>
                             <th>שם לתצוגה</th>
-                            <th>מחיר רכישה</th>
-                            <th>מחיר ללקוח</th>
-                            <th>חודשי/שנתי</th>
-                            <th>תדירות</th>
-                            <th>להציג בטבלה הראשית</th>
-                            <th>פעולות</th>
+                            <th class="col-cost">מחיר רכישה</th>
+                            <th class="col-sell">מחיר ללקוח</th>
+                            <th class="col-billing">חודשי/שנתי</th>
+                            <th class="col-billing">תדירות</th>
+                            <th class="col-show-main">בעמוד הראשי</th>
+                            <th class="col-actions">פעולות</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -237,12 +239,12 @@
                                     <td><?php echo esc_html($type->sku); ?></td>
                                     <td><?php echo esc_html($type->name); ?></td>
                                     <td><?php echo esc_html($type->display_name ?? $type->name); ?></td>
-                                    <td><?php echo esc_html($type->cost_price); ?></td>
-                                    <td><?php echo esc_html($type->selling_price); ?></td>
-                                    <td><?php echo esc_html($type->billing_cycle ?? 'monthly'); ?></td>
-                                    <td><?php echo esc_html($type->billing_frequency ?? 1); ?></td>
-                                    <td><input type="checkbox" disabled <?php echo (!isset($type->show_in_main) || intval($type->show_in_main) === 1) ? 'checked' : ''; ?>></td>
-                                    <td><button type="button" class="m365-btn m365-btn-small m365-btn-secondary license-type-edit">ערוך</button></td>
+                                    <td class="col-cost"><?php echo esc_html($type->cost_price); ?></td>
+                                    <td class="col-sell"><?php echo esc_html($type->selling_price); ?></td>
+                                    <td class="col-billing"><?php echo esc_html($type->billing_cycle ?? 'monthly'); ?></td>
+                                    <td class="col-billing"><?php echo esc_html($type->billing_frequency ?? 1); ?></td>
+                                    <td class="col-show-main"><input type="checkbox" disabled <?php echo (!isset($type->show_in_main) || intval($type->show_in_main) === 1) ? 'checked' : ''; ?>></td>
+                                    <td class="col-actions"><button type="button" class="m365-btn m365-btn-small m365-btn-secondary license-type-edit">ערוך</button></td>
                                 </tr>
                             <?php endforeach; ?>
                         <?php else : ?>

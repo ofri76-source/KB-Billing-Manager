@@ -496,6 +496,97 @@ class M365_LM_Database {
         return $wpdb->get_results($sql);
     }
 
+    /**
+     * לוגי שינויים ברישיונות עם נתוני לקוח וסינון
+     */
+    public static function get_change_logs($args = array()) {
+        global $wpdb;
+
+        $defaults = array(
+            'limit'          => 500,
+            'customer_query' => '',
+            'license_query'  => '',
+            'date_from'      => '',
+            'date_to'        => '',
+            'contexts'       => array('save_license', 'delete_license', 'restore_license', 'hard_delete', 'sync_licenses', 'upsert_license_by_sku'),
+        );
+
+        $args = wp_parse_args($args, $defaults);
+
+        $table_logs      = $wpdb->prefix . 'kb_billing_logs';
+        $table_customers = self::get_customers_table_name();
+
+        if (empty($args['contexts']) || !is_array($args['contexts'])) {
+            return array();
+        }
+
+        $contexts = array_values(array_filter(array_map('sanitize_text_field', $args['contexts'])));
+        if (empty($contexts)) {
+            return array();
+        }
+
+        $context_placeholders = implode(',', array_fill(0, count($contexts), '%s'));
+        $params               = $contexts;
+
+        $sql = "SELECT l.*, c.customer_number, c.customer_name FROM {$table_logs} l LEFT JOIN {$table_customers} c ON l.customer_id = c.id WHERE l.context IN ({$context_placeholders})";
+
+        if (!empty($args['date_from'])) {
+            $sql      .= ' AND l.event_time >= %s';
+            $params[] = $args['date_from'];
+        }
+
+        if (!empty($args['date_to'])) {
+            $sql      .= ' AND l.event_time <= %s';
+            $params[] = $args['date_to'];
+        }
+
+        $sql    .= ' ORDER BY l.event_time DESC';
+        $limit   = intval($args['limit']);
+        $limit   = $limit > 0 ? $limit : 500;
+        $sql    .= $wpdb->prepare(' LIMIT %d', $limit);
+
+        $prepared = $wpdb->prepare($sql, $params);
+        $rows     = $wpdb->get_results($prepared);
+
+        $customer_query = isset($args['customer_query']) ? sanitize_text_field($args['customer_query']) : '';
+        $license_query  = isset($args['license_query']) ? sanitize_text_field($args['license_query']) : '';
+
+        $filtered = array();
+
+        foreach ($rows as $row) {
+            $row->license_name = '';
+            $row->license_sku  = '';
+
+            if (!empty($row->data)) {
+                $decoded = json_decode($row->data, true);
+                if (is_array($decoded)) {
+                    $row->license_name = isset($decoded['plan_name']) ? $decoded['plan_name'] : (isset($decoded['name']) ? $decoded['name'] : '');
+                    $row->license_sku  = isset($decoded['sku_id']) ? $decoded['sku_id'] : (isset($decoded['sku']) ? $decoded['sku'] : '');
+                }
+            }
+
+            if ($customer_query) {
+                $needle = mb_strtolower($customer_query);
+                $haystack = mb_strtolower(($row->customer_name ?? '') . ' ' . ($row->customer_number ?? ''));
+                if (strpos($haystack, $needle) === false) {
+                    continue;
+                }
+            }
+
+            if ($license_query) {
+                $needle = mb_strtolower($license_query);
+                $haystack = mb_strtolower($row->license_name . ' ' . $row->license_sku . ' ' . $row->message);
+                if (strpos($haystack, $needle) === false) {
+                    continue;
+                }
+            }
+
+            $filtered[] = $row;
+        }
+
+        return $filtered;
+    }
+
     public static function get_log_retention_days() {
         $days = intval(get_option('kbbm_log_retention_days', 120));
         return $days > 0 ? $days : 120;

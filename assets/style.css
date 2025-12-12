@@ -3,7 +3,7 @@
     direction: rtl;
     width: 100%;
     max-width: 100vw;
-    margin: 20px auto;
+    margin: 0 auto;
     padding: 20px;
     background: #fff;
     border-radius: 0;
@@ -32,14 +32,22 @@
     padding: 0;
 }
 
+#wpcontent {
+    padding-left: 0;
+}
+
+#wpbody-content {
+    padding: 0 0 20px 0;
+}
+
+.kbbm-wrap .m365-lm-container {
+    margin: 0;
+    padding: 10px 20px;
+}
+
 .m365-table-wrapper,
 .m365-table {
     width: 100%;
-}
-
-.kbbm-license-types-table th,
-.kbbm-license-types-table td {
-    text-align: center;
 }
 
 .kbbm-license-types-table th,
@@ -218,9 +226,9 @@
 
 .m365-table th,
 .m365-table td {
-    padding: 6px 8px;
-    font-size: 13px;
-    line-height: 1.3;
+    padding: 4px 6px;
+    font-size: 12px;
+    line-height: 1.25;
 }
 
 .m365-table .actions {
@@ -801,6 +809,20 @@
 .kb-logs-table th.col-level,
 .kb-logs-table td.col-level {
     width: 8%;
+}
+
+.kbbm-license-types-table th.col-cost,
+.kbbm-license-types-table td.col-cost,
+.kbbm-license-types-table th.col-sell,
+.kbbm-license-types-table td.col-sell,
+.kbbm-license-types-table th.col-billing,
+.kbbm-license-types-table td.col-billing,
+.kbbm-license-types-table th.col-show-main,
+.kbbm-license-types-table td.col-show-main,
+.kbbm-license-types-table th.col-actions,
+.kbbm-license-types-table td.col-actions {
+    width: 6%;
+    white-space: nowrap;
 }
 
 .kb-logs-table th.col-time,

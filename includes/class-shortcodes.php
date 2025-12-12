@@ -8,6 +8,7 @@ class M365_LM_Shortcodes {
         add_shortcode('m365_recycle_bin', array($this, 'recycle_bin'));
         add_shortcode('m365_settings', array($this, 'settings_page'));
         add_shortcode('kb_billing_log', array($this, 'log_page'));
+        add_shortcode('kbbm_alerts', array($this, 'alerts_page'));
 
         add_action('wp_enqueue_scripts', array($this, 'enqueue_scripts'));
         add_action('wp_ajax_m365_sync_licenses', array($this, 'ajax_sync_licenses'));
@@ -36,6 +37,7 @@ class M365_LM_Shortcodes {
         $active = 'main';
         $licenses = M365_LM_Database::get_licenses();
         $customers = M365_LM_Database::get_customers();
+        $license_types = M365_LM_Database::get_combined_license_types();
         include M365_LM_PLUGIN_DIR . 'templates/main-page.php';
         return ob_get_clean();
     }
@@ -350,6 +352,7 @@ class M365_LM_Shortcodes {
                 $recycle_url  = 'https://kb.macomp.co.il/?page_id=14291';
                 $settings_url = 'https://kb.macomp.co.il/?page_id=14292';
                 $logs_url     = 'https://kb.macomp.co.il/?page_id=14285';
+                $alerts_url   = 'https://kb.macomp.co.il/?page_id=14290';
                 $active       = 'logs';
             ?>
             <div class="m365-nav-links">
@@ -357,6 +360,7 @@ class M365_LM_Shortcodes {
                 <a href="<?php echo esc_url($recycle_url); ?>" class="<?php echo $active === 'recycle' ? 'active' : ''; ?>">סל מחזור</a>
                 <a href="<?php echo esc_url($settings_url); ?>" class="<?php echo $active === 'settings' ? 'active' : ''; ?>">הגדרות</a>
                 <a href="<?php echo esc_url($logs_url); ?>" class="<?php echo $active === 'logs' ? 'active' : ''; ?>">לוגים</a>
+                <a href="<?php echo esc_url($alerts_url); ?>" class="<?php echo $active === 'alerts' ? 'active' : ''; ?>">התראות</a>
             </div>
             <h2>KB Billing Manager – לוגים</h2>
             <?php if (empty($logs)): ?>
@@ -502,6 +506,23 @@ class M365_LM_Shortcodes {
             <?php endif; ?>
         </div>
         <?php
+        return ob_get_clean();
+    }
+
+    public function alerts_page($atts) {
+        $filters = array(
+            'customer_query' => isset($_GET['customer_query']) ? sanitize_text_field(wp_unslash($_GET['customer_query'])) : '',
+            'license_query'  => isset($_GET['license_query']) ? sanitize_text_field(wp_unslash($_GET['license_query'])) : '',
+            'date_from'      => isset($_GET['date_from']) ? sanitize_text_field(wp_unslash($_GET['date_from'])) : '',
+            'date_to'        => isset($_GET['date_to']) ? sanitize_text_field(wp_unslash($_GET['date_to'])) : '',
+            'limit'          => 500,
+        );
+
+        $logs   = M365_LM_Database::get_change_logs($filters);
+        $active = 'alerts';
+
+        ob_start();
+        include M365_LM_PLUGIN_DIR . 'templates/alerts.php';
         return ob_get_clean();
     }
 }

@@ -5,6 +5,7 @@ $main_url     = 'https://kb.macomp.co.il/?page_id=14296';
 $recycle_url  = 'https://kb.macomp.co.il/?page_id=14291';
 $settings_url = 'https://kb.macomp.co.il/?page_id=14292';
 $logs_url     = 'https://kb.macomp.co.il/?page_id=14285';
+$alerts_url   = 'https://kb.macomp.co.il/?page_id=14290';
 $active       = isset($active) ? $active : '';
 
 // Billing period input removed from header per user request; keep defaults for downstream use if present
@@ -12,10 +13,37 @@ $current_billing_period = isset($_GET['billing_period']) ? sanitize_text_field(w
 $billing_period_label = $current_billing_period !== '' ? $current_billing_period : '';
 
 $grouped_customers = array();
+$types_by_sku      = array();
+
+if (!empty($license_types)) {
+    foreach ($license_types as $type) {
+        if (!empty($type->sku)) {
+            $types_by_sku[$type->sku] = $type;
+        }
+    }
+}
 
 if (!empty($licenses)) {
     foreach ($licenses as $license) {
         $cid = isset($license->customer_id) ? $license->customer_id : $license->customer_number;
+
+        $sku_key = isset($license->sku_id) ? $license->sku_id : '';
+        $type    = (!empty($sku_key) && isset($types_by_sku[$sku_key])) ? $types_by_sku[$sku_key] : null;
+
+        if ($type && isset($type->show_in_main) && intval($type->show_in_main) === 0) {
+            continue;
+        }
+
+        $display_plan_name = $license->plan_name;
+        if ($type) {
+            if (!empty($type->display_name)) {
+                $display_plan_name = $type->display_name;
+            } elseif (!empty($type->name)) {
+                $display_plan_name = $type->name;
+            }
+        }
+
+        $license->display_plan_name = $display_plan_name;
 
         if (!isset($grouped_customers[$cid])) {
             $grouped_customers[$cid] = array(
@@ -37,6 +65,7 @@ if (!empty($licenses)) {
         <a href="<?php echo esc_url($recycle_url); ?>" class="<?php echo $active === 'recycle' ? 'active' : ''; ?>">סל מחזור</a>
         <a href="<?php echo esc_url($settings_url); ?>" class="<?php echo $active === 'settings' ? 'active' : ''; ?>">הגדרות</a>
         <a href="<?php echo esc_url($logs_url); ?>" class="<?php echo $active === 'logs' ? 'active' : ''; ?>">לוגים</a>
+        <a href="<?php echo esc_url($alerts_url); ?>" class="<?php echo $active === 'alerts' ? 'active' : ''; ?>">התראות</a>
     </div>
 
     <div class="m365-header">
@@ -127,6 +156,7 @@ if (!empty($licenses)) {
                             if (!empty($license->billing_frequency)) {
                                 $billing_display .= ' / ' . $license->billing_frequency;
                             }
+                            $plan_display = isset($license->display_plan_name) ? $license->display_plan_name : $license->plan_name;
                         ?>
                         <tr class="license-row detail-row" style="display:none;"
                             data-id="<?php echo esc_attr($license->id); ?>"
@@ -137,7 +167,7 @@ if (!empty($licenses)) {
                             data-enabled="<?php echo esc_attr($license->enabled_units); ?>"
                             data-notes="<?php echo esc_attr($license->notes); ?>"
                         >
-                            <td class="plan-name" data-field="plan_name"><?php echo esc_html($license->plan_name); ?></td>
+                            <td class="plan-name" data-field="plan_name"><?php echo esc_html($plan_display); ?></td>
                             <td data-field="billing_account"><?php echo esc_html($license->billing_account); ?></td>
                             <td class="editable-price" data-field="selling_price"><?php echo esc_html($license->selling_price); ?></td>
                             <td class="editable-price" data-field="cost_price"><?php echo esc_html($license->cost_price); ?></td>

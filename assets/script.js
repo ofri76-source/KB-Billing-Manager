@@ -681,6 +681,61 @@ jQuery(document).ready(function($) {
         }
     });
 
+    // פילטרים למסך התראות
+    function applyAlertsFilters() {
+        const customer = ($('#alerts-filter-customer').val() || '').toLowerCase();
+        const license  = ($('#alerts-filter-license').val() || '').toLowerCase();
+        const fromVal  = $('#alerts-filter-from').val();
+        const toVal    = $('#alerts-filter-to').val();
+
+        const fromDate = fromVal ? new Date(fromVal) : null;
+        const toDate   = toVal ? new Date(toVal + 'T23:59:59') : null;
+
+        $('#kbbm-alerts-table tbody tr').each(function() {
+            const row = $(this);
+            let show = true;
+
+            if (customer) {
+                const haystack = ((row.data('customer-name') || '') + ' ' + (row.data('customer-number') || '')).toLowerCase();
+                if (!haystack.includes(customer)) {
+                    show = false;
+                }
+            }
+
+            if (show && license) {
+                const haystack = ((row.data('license-name') || '') + ' ' + (row.data('license-sku') || '')).toLowerCase();
+                if (!haystack.includes(license)) {
+                    show = false;
+                }
+            }
+
+            if (show && (fromDate || toDate)) {
+                const rowTime = new Date(row.data('event-time'));
+                if (fromDate && rowTime < fromDate) {
+                    show = false;
+                }
+                if (toDate && rowTime > toDate) {
+                    show = false;
+                }
+            }
+
+            row.toggle(show);
+        });
+    }
+
+    if ($('#kbbm-alerts-table').length) {
+        $('#alerts-filter-customer, #alerts-filter-license, #alerts-filter-from, #alerts-filter-to').on('input change', function() {
+            applyAlertsFilters();
+        });
+
+        $('#alerts-reset-filters').on('click', function() {
+            $('#alerts-filter-customer, #alerts-filter-license, #alerts-filter-from, #alerts-filter-to').val('');
+            applyAlertsFilters();
+        });
+
+        applyAlertsFilters();
+    }
+
     // עריכת סוגי רישיון (טאב הגדרות)
     $(document).on('click', '.license-type-edit', function() {
         const row = $(this).closest('tr');
