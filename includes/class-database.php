@@ -198,14 +198,28 @@ class M365_LM_Database {
     public static function save_license($data) {
         global $wpdb;
         $table = $wpdb->prefix . 'm365_licenses';
-        
+
         if (isset($data['id']) && $data['id'] > 0) {
-            $wpdb->update($table, $data, array('id' => $data['id']));
-            return $data['id'];
+            $result = $wpdb->update($table, $data, array('id' => $data['id']));
         } else {
-            $wpdb->insert($table, $data);
-            return $wpdb->insert_id;
+            $result = $wpdb->insert($table, $data);
+            $data['id'] = $wpdb->insert_id;
         }
+
+        if ($result === false) {
+            M365_LM_Database::log_event(
+                'error',
+                'save_license',
+                'DB error while saving license',
+                isset($data['customer_id']) ? intval($data['customer_id']) : null,
+                array(
+                    'sql_error' => $wpdb->last_error,
+                    'data'      => $data,
+                )
+            );
+        }
+
+        return isset($data['id']) ? $data['id'] : null;
     }
 
     /**
