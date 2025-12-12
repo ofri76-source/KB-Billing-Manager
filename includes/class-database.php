@@ -137,10 +137,7 @@ class M365_LM_Database {
         dbDelta($sql_license_types);
         dbDelta($sql_logs);
 
-        self::maybe_add_column($table_licenses, 'billing_account', "billing_account VARCHAR(255) DEFAULT NULL AFTER plan_name");
-        self::maybe_add_column($table_licenses, 'renewal_date', "renewal_date DATE DEFAULT NULL AFTER billing_frequency");
-        self::maybe_add_column($table_licenses, 'notes', "notes TEXT NULL AFTER renewal_date");
-
+        self::ensure_legacy_license_schema($table_licenses);
         self::maybe_add_column($kb_licenses_table, 'billing_account', "billing_account VARCHAR(255) DEFAULT NULL AFTER sku");
         self::maybe_add_column($kb_licenses_table, 'renewal_date', "renewal_date DATE DEFAULT NULL AFTER billing_frequency");
         self::maybe_add_column($kb_licenses_table, 'notes', "notes TEXT NULL AFTER renewal_date");
@@ -442,6 +439,63 @@ class M365_LM_Database {
 
         if ($table_exists && !$column_exists) {
             $wpdb->query("ALTER TABLE {$table} ADD COLUMN {$definition}");
+        }
+    }
+
+    /**
+     * Ensures the legacy licenses table contains the required columns and logs if repairs fail.
+     */
+    private static function ensure_legacy_license_schema($table_licenses) {
+        global $wpdb;
+
+        $table_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $table_licenses)) === $table_licenses;
+
+        if (!$table_exists) {
+            self::log_event(
+                'error',
+                'schema_check',
+                'Legacy license table is missing; recreate the plugin tables.',
+                null,
+                array('table' => $table_licenses)
+            );
+            return;
+        }
+
+        $required_columns = array(
+            'billing_account'   => "billing_account VARCHAR(255) DEFAULT NULL AFTER plan_name",
+            'enabled_units'     => "enabled_units int(11) NOT NULL DEFAULT 0 AFTER plan_name",
+            'consumed_units'    => "consumed_units int(11) NOT NULL DEFAULT 0 AFTER enabled_units",
+            'status_text'       => "status_text varchar(100) DEFAULT NULL AFTER consumed_units",
+            'cost_price'        => "cost_price decimal(10,2) NOT NULL DEFAULT 0 AFTER status_text",
+            'selling_price'     => "selling_price decimal(10,2) NOT NULL DEFAULT 0 AFTER cost_price",
+            'quantity'          => "quantity int(11) NOT NULL DEFAULT 0 AFTER selling_price",
+            'billing_cycle'     => "billing_cycle varchar(20) NOT NULL DEFAULT 'monthly' AFTER quantity",
+            'billing_frequency' => "billing_frequency varchar(50) DEFAULT NULL AFTER billing_cycle",
+            'renewal_date'      => "renewal_date DATE DEFAULT NULL AFTER billing_frequency",
+            'notes'             => "notes TEXT NULL AFTER renewal_date",
+            'is_deleted'        => "is_deleted tinyint(1) DEFAULT 0 AFTER notes",
+            'deleted_at'        => "deleted_at datetime DEFAULT NULL AFTER is_deleted",
+        );
+
+        foreach ($required_columns as $column => $definition) {
+            self::maybe_add_column($table_licenses, $column, $definition);
+        }
+
+        $current_columns = $wpdb->get_col("SHOW COLUMNS FROM {$table_licenses}");
+        $missing = array_values(array_diff(array_keys($required_columns), $current_columns));
+
+        if (!empty($missing)) {
+            self::log_event(
+                'error',
+                'schema_check',
+                'Legacy license table is missing required columns; please drop and recreate or add them manually.',
+                null,
+                array(
+                    'table'            => $table_licenses,
+                    'missing_columns'  => $missing,
+                    'instructions'     => 'DROP TABLE and reactivate the plugin, or run ALTER TABLE to add the missing columns.',
+                )
+            );
         }
     }
 }
