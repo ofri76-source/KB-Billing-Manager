@@ -626,13 +626,23 @@
 }
 .kbbm-log-table th,
 .kbbm-log-table td {
-    padding: 6px 8px;
+    padding: 8px;
     border-bottom: 1px solid #eee;
-    word-break: break-word;
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    vertical-align: top;
+    max-width: 220px;
 }
 .kbbm-log-table th {
     background: #f0f0f0;
     text-align: right;
+}
+.kbbm-log-table th .kbbm-log-header-filter {
+    margin-top: 6px;
+}
+.kbbm-log-table th .kbbm-log-header-filter select {
+    width: 100%;
+    font-size: 12px;
 }
 .kbbm-log-table .log-level-error {
     background: #ffe5e5;
@@ -680,6 +690,44 @@
 
 .kbbm-log-table th.sortable:hover {
     background: #e6e6e6;
+}
+
+.kb-logs-table {
+    width: 100% !important;
+    table-layout: fixed;
+}
+
+.kb-logs-table th.col-message,
+.kb-logs-table td.col-message {
+    width: 35%;
+    max-width: none;
+}
+
+.kb-logs-table th.col-tenant-domain,
+.kb-logs-table td.col-tenant-domain {
+    width: 15%;
+}
+
+.kb-logs-table th.col-customer-name,
+.kb-logs-table td.col-customer-name,
+.kb-logs-table th.col-customer-number,
+.kb-logs-table td.col-customer-number {
+    width: 15%;
+}
+
+.kb-logs-table th.col-context,
+.kb-logs-table td.col-context {
+    width: 10%;
+}
+
+.kb-logs-table th.col-level,
+.kb-logs-table td.col-level {
+    width: 10%;
+}
+
+.kb-logs-table th.col-time,
+.kb-logs-table td.col-time {
+    width: 15%;
 }
 
 

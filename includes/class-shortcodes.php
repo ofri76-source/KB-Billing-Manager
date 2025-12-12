@@ -332,16 +332,16 @@ class M365_LM_Shortcodes {
                     </div>
                 </div>
                 <div class="m365-table-wrapper">
-                    <table class="m365-table kbbm-log-table">
+                    <table class="m365-table kbbm-log-table kb-logs-table">
                         <thead>
                             <tr>
-                                <th class="sortable" data-column="time">זמן</th>
-                                <th class="sortable" data-column="level">Level</th>
-                                <th class="sortable" data-column="context">Context</th>
-                                <th class="sortable" data-column="customer_number">מספר לקוח</th>
-                                <th class="sortable" data-column="customer_name">שם לקוח</th>
-                                <th class="sortable" data-column="tenant_domain">Tenant Domain</th>
-                                <th class="sortable" data-column="message">הודעה</th>
+                                <th class="sortable col-time" data-column="time">זמן</th>
+                                <th class="sortable col-level" data-column="level">Level</th>
+                                <th class="sortable col-context" data-column="context">Context</th>
+                                <th class="sortable col-customer-number" data-column="customer_number">מספר לקוח</th>
+                                <th class="sortable col-customer-name" data-column="customer_name">שם לקוח</th>
+                                <th class="sortable col-tenant-domain" data-column="tenant_domain">Tenant Domain</th>
+                                <th class="sortable col-message" data-column="message">הודעה</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -372,13 +372,13 @@ class M365_LM_Shortcodes {
                                 data-customer="<?php echo esc_attr($log->customer_id); ?>"
                                 data-tenant_domain="<?php echo esc_attr($tenant_domain); ?>"
                             >
-                                <td data-sort-value="<?php echo esc_attr($log->event_time); ?>"><?php echo esc_html($log->event_time); ?></td>
-                                <td data-sort-value="<?php echo esc_attr($log->level); ?>"><?php echo esc_html($log->level); ?></td>
-                                <td data-sort-value="<?php echo esc_attr($log->context); ?>"><?php echo esc_html($log->context); ?></td>
-                                <td data-sort-value="<?php echo esc_attr($customer_number); ?>"><?php echo esc_html($customer_number); ?></td>
-                                <td data-sort-value="<?php echo esc_attr($customer_name); ?>"><?php echo esc_html($customer_name); ?></td>
-                                <td data-sort-value="<?php echo esc_attr($tenant_domain); ?>"><?php echo esc_html($tenant_domain); ?></td>
-                                <td data-sort-value="<?php echo esc_attr($log->message); ?>">
+                                <td class="col-time" data-sort-value="<?php echo esc_attr($log->event_time); ?>"><?php echo esc_html($log->event_time); ?></td>
+                                <td class="col-level" data-sort-value="<?php echo esc_attr($log->level); ?>"><?php echo esc_html($log->level); ?></td>
+                                <td class="col-context" data-sort-value="<?php echo esc_attr($log->context); ?>"><?php echo esc_html($log->context); ?></td>
+                                <td class="col-customer-number" data-sort-value="<?php echo esc_attr($customer_number); ?>"><?php echo esc_html($customer_number); ?></td>
+                                <td class="col-customer-name" data-sort-value="<?php echo esc_attr($customer_name); ?>"><?php echo esc_html($customer_name); ?></td>
+                                <td class="col-tenant-domain" data-sort-value="<?php echo esc_attr($tenant_domain); ?>"><?php echo esc_html($tenant_domain); ?></td>
+                                <td class="col-message" data-sort-value="<?php echo esc_attr($log->message); ?>">
                                     <div class="kbbm-log-message"><?php echo esc_html($log->message); ?></div>
                                     <?php if (!empty($log->data)): ?>
                                         <pre class="kbbm-log-data"><?php echo esc_html($log->data); ?></pre>

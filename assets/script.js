@@ -592,12 +592,31 @@ jQuery(document).ready(function($) {
         const logHeaders = logTable.find('th.sortable');
         const logSearch = $('#kbbm-log-search-input');
         const logFilters = $('.kbbm-log-filter');
+        const columnFilters = [];
         let sortState = { index: 0, dir: 'desc' };
+
+        logHeaders.each(function() {
+            const header = $(this);
+            const columnIndex = header.index();
+            const select = $('<select class="kbbm-log-column-filter"><option value="">הכל</option></select>');
+
+            logTable.find('tbody tr').each(function() {
+                const value = $(this).children('td').eq(columnIndex).text().trim();
+                if (value && select.find('option').filter(function() { return $(this).val() === value; }).length === 0) {
+                    const option = $('<option></option>').attr('value', value).text(value);
+                    select.append(option);
+                }
+            });
+
+            header.append($('<div class="kbbm-log-header-filter"></div>').append(select));
+            columnFilters.push(select);
+        });
 
         function applyLogFilters() {
             const searchTerm = (logSearch.val() || '').toLowerCase();
             logTable.find('tbody tr').each(function() {
                 const row = $(this);
+                const cells = row.children('td');
                 const textMatch = !searchTerm || row.text().toLowerCase().indexOf(searchTerm) !== -1;
                 let filtersMatch = true;
 
@@ -622,6 +641,19 @@ jQuery(document).ready(function($) {
                         return false;
                     }
                 });
+
+                if (filtersMatch) {
+                    columnFilters.forEach(function(select, idx) {
+                        if (!filtersMatch) return;
+                        const filterVal = select.val();
+                        if (!filterVal) return;
+
+                        const cellText = (cells.eq(idx).text() || '').trim();
+                        if (cellText !== filterVal) {
+                            filtersMatch = false;
+                        }
+                    });
+                }
 
                 row.toggle(textMatch && filtersMatch);
             });
@@ -654,6 +686,9 @@ jQuery(document).ready(function($) {
 
         logSearch.on('input', applyLogFilters);
         logFilters.on('change', applyLogFilters);
+        columnFilters.forEach(function(filter) {
+            filter.on('change', applyLogFilters);
+        });
     }
     
     // פונקציית עזר - הצגת הודעה
