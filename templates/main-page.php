@@ -1,141 +1,238 @@
+<?php
+if (!defined('ABSPATH')) exit;
+
+$main_url     = 'https://kb.macomp.co.il/?page_id=14296';
+$recycle_url  = 'https://kb.macomp.co.il/?page_id=14291';
+$settings_url = 'https://kb.macomp.co.il/?page_id=14292';
+$logs_url     = 'https://kb.macomp.co.il/?page_id=14285';
+$alerts_url   = 'https://kb.macomp.co.il/?page_id=14290';
+$active       = isset($active) ? $active : '';
+
+// Billing period input removed from header per user request; keep defaults for downstream use if present
+$grouped_customers = array();
+$types_by_sku      = array();
+
+if (!empty($license_types)) {
+    foreach ($license_types as $type) {
+        if (!empty($type->sku)) {
+            $types_by_sku[$type->sku] = $type;
+        }
+    }
+}
+
+if (!empty($licenses)) {
+    foreach ($licenses as $license) {
+        $cid = isset($license->customer_id) ? $license->customer_id : $license->customer_number;
+
+        $sku_key = isset($license->sku_id) ? $license->sku_id : '';
+        $type    = (!empty($sku_key) && isset($types_by_sku[$sku_key])) ? $types_by_sku[$sku_key] : null;
+
+        if ($type && isset($type->show_in_main) && intval($type->show_in_main) === 0) {
+            continue;
+        }
+
+        $display_plan_name = $license->plan_name;
+        if ($type) {
+            if (!empty($type->display_name)) {
+                $display_plan_name = $type->display_name;
+            } elseif (!empty($type->name)) {
+                $display_plan_name = $type->name;
+            }
+        }
+
+        $license->display_plan_name = $display_plan_name;
+
+        if (!isset($grouped_customers[$cid])) {
+            $grouped_customers[$cid] = array(
+                'customer_number' => $license->customer_number ?? '',
+                'customer_name'   => $license->customer_name ?? '',
+                'tenant_domain'   => $license->tenant_domain ?? '',
+                'licenses'        => array(),
+            );
+        }
+
+        $grouped_customers[$cid]['licenses'][] = $license;
+    }
+}
+?>
+
 <div class="m365-lm-container">
-    <?php
-        $main_url     = 'https://kb.macomp.co.il/?page_id=14296';
-        $recycle_url  = 'https://kb.macomp.co.il/?page_id=14291';
-        $settings_url = 'https://kb.macomp.co.il/?page_id=14292';
-        $logs_url    = 'https://kb.macomp.co.il/?page_id=14285';
-        $active       = isset($active) ? $active : '';
-    ?>
     <div class="m365-nav-links">
         <a href="<?php echo esc_url($main_url); ?>" class="<?php echo $active === 'main' ? 'active' : ''; ?>">ראשי</a>
         <a href="<?php echo esc_url($recycle_url); ?>" class="<?php echo $active === 'recycle' ? 'active' : ''; ?>">סל מחזור</a>
         <a href="<?php echo esc_url($settings_url); ?>" class="<?php echo $active === 'settings' ? 'active' : ''; ?>">הגדרות</a>
-            <a href="<?php echo esc_url($logs_url); ?>" class="<?php echo $active === 'logs' ? 'active' : ''; ?>">לוגים</a>
+        <a href="<?php echo esc_url($logs_url); ?>" class="<?php echo $active === 'logs' ? 'active' : ''; ?>">לוגים</a>
+        <a href="<?php echo esc_url($alerts_url); ?>" class="<?php echo $active === 'alerts' ? 'active' : ''; ?>">התראות</a>
     </div>
+
     <div class="m365-header">
-        <h2>ניהול רישיונות Microsoft 365</h2>
+        <div class="m365-header-left">
+            <h2>ניהול רישיונות Microsoft 365</h2>
+        </div>
         <div class="m365-actions">
             <select id="customer-select">
                 <option value="">בחר לקוח לסנכרון</option>
                 <?php foreach ($customers as $customer): ?>
-                    <option value="<?php echo $customer->id; ?>">
+                    <option value="<?php echo esc_attr($customer->id); ?>">
                         <?php echo esc_html($customer->customer_name); ?>
                     </option>
                 <?php endforeach; ?>
             </select>
             <button id="sync-licenses" class="m365-btn m365-btn-primary">סנכרון רישיונות</button>
-            <button id="add-license" class="m365-btn m365-btn-success">הוסף רישיון ידני</button>
+            <button id="sync-all-licenses" class="m365-btn m365-btn-secondary">סנכרון הכל</button>
         </div>
     </div>
-    
+
     <div id="sync-message" class="m365-message" style="display:none;"></div>
-    
+
     <div class="m365-table-wrapper">
-        <table class="m365-table m365-table-vertical">
+        <table class="m365-table kbbm-report-table kbbm-details-table">
             <thead>
-                <tr>
-                    <th><div class="vertical-header"><span>מספר לקוח</span></div></th>
-                    <th><div class="vertical-header"><span>שם לקוח</span></div></th>
-                    <th><div class="vertical-header"><span>SKU</span></div></th>
-                    <th><div class="vertical-header"><span>שם תוכנית</span></div></th>
-                    <th><div class="vertical-header"><span>יחידות זמינות</span></div></th>
-                    <th><div class="vertical-header"><span>יחידות בשימוש</span></div></th>
-                    <th><div class="vertical-header"><span>סטטוס</span></div></th>
-                    <th><div class="vertical-header"><span>עלות</span></div></th>
-                    <th><div class="vertical-header"><span>מחיר</span></div></th>
-                    <th><div class="vertical-header"><span>פעולות</span></div></th>
+                <tr class="customer-header-row">
+                    <th colspan="3">מספר לקוח</th>
+                    <th colspan="3">שם לקוח</th>
+                    <th colspan="2">Tenant Domain</th>
+                    <th colspan="2">סה"כ חיובים</th>
                 </tr>
             </thead>
             <tbody>
-                <?php if (empty($licenses)): ?>
-                    <tr>
-                        <td colspan="10" class="no-data">אין רישיונות להצגה. בצע סנכרון ראשוני.</td>
+            <?php if (empty($grouped_customers)): ?>
+                <tr>
+                    <td colspan="10" class="kbbm-no-data">אין נתונים להצגה. בצע סנכרון ראשוני.</td>
+                </tr>
+            <?php else: ?>
+                <?php foreach ($grouped_customers as $cid => $customer): ?>
+                    <?php
+                        $total_charges = 0;
+                        $customer_notes = '';
+                        foreach ($customer['licenses'] as $license) {
+                            $total_purchased = ($license->quantity > 0) ? $license->quantity : $license->enabled_units;
+                            $total_charges  += $total_purchased * $license->selling_price;
+                            if (empty($customer_notes) && !empty($license->notes)) {
+                                $customer_notes = $license->notes;
+                            }
+                        }
+                    ?>
+                    <?php
+                        $has_customer_number = !empty($customer['customer_number']);
+                        $has_customer_name   = !empty($customer['customer_name']);
+                        $has_tenant_domain   = !empty($customer['tenant_domain']);
+                        $has_total_charges   = $total_charges > 0;
+                    ?>
+                    <tr class="customer-summary" data-customer="<?php echo esc_attr($cid); ?>">
+                        <td colspan="3" class="<?php echo $has_customer_number ? '' : 'kbbm-empty-summary'; ?>"><?php echo $has_customer_number ? esc_html($customer['customer_number']) : ''; ?></td>
+                        <td colspan="3" class="<?php echo $has_customer_name ? '' : 'kbbm-empty-summary'; ?>"><?php echo $has_customer_name ? esc_html($customer['customer_name']) : ''; ?></td>
+                        <td colspan="2" class="<?php echo $has_tenant_domain ? '' : 'kbbm-empty-summary'; ?>"><?php echo $has_tenant_domain ? esc_html($customer['tenant_domain']) : ''; ?></td>
+                        <td colspan="2" class="<?php echo $has_total_charges ? '' : 'kbbm-empty-summary'; ?>"><?php echo $has_total_charges ? number_format($total_charges, 2) : ''; ?></td>
                     </tr>
-                <?php else: ?>
-                    <?php foreach ($licenses as $license): ?>
-                        <tr
-                            data-id="<?php echo $license->id; ?>"
-                            data-enabled="<?php echo esc_attr($license->enabled_units); ?>"
-                            data-consumed="<?php echo esc_attr($license->consumed_units); ?>"
-                            data-status="<?php echo esc_attr($license->status_text); ?>"
+                    <tr class="plans-header-row detail-row" data-customer="<?php echo esc_attr($cid); ?>" style="display:none;">
+                        <th class="col-plan-display">תוכנית ללקוח</th>
+                        <th>חשבון חיוב</th>
+                        <th class="col-numeric">מחיר ללקוח</th>
+                        <th class="col-numeric">מחיר רכישה</th>
+                        <th class="col-numeric">נרכש</th>
+                        <th class="col-numeric">בשימוש</th>
+                        <th class="col-numeric">פנוי</th>
+                        <th class="col-numeric">ת. חיוב</th>
+                        <th class="col-numeric">חודשי / שנתי</th>
+                        <th class="col-numeric">פעולות</th>
+                    </tr>
+                    <?php foreach ($customer['licenses'] as $license): ?>
+                        <?php
+                            $total_purchased = ($license->quantity > 0) ? $license->quantity : $license->enabled_units;
+                            $available = $total_purchased - $license->consumed_units;
+                            $billing_display = $license->billing_cycle;
+                            if (!empty($license->billing_frequency)) {
+                                $billing_display .= ' / ' . $license->billing_frequency;
+                            }
+                            $plan_display = isset($license->display_plan_name) ? $license->display_plan_name : $license->plan_name;
+                        ?>
+                        <tr class="license-row detail-row" style="display:none;"
+                            data-id="<?php echo esc_attr($license->id); ?>"
+                            data-customer="<?php echo esc_attr($cid); ?>"
                             data-billing-cycle="<?php echo esc_attr($license->billing_cycle); ?>"
                             data-billing-frequency="<?php echo esc_attr($license->billing_frequency); ?>"
                             data-quantity="<?php echo esc_attr($license->quantity); ?>"
+                            data-enabled="<?php echo esc_attr($license->enabled_units); ?>"
+                            data-notes="<?php echo esc_attr($license->notes); ?>"
                         >
-                            <td><?php echo esc_html($license->customer_number); ?></td>
-                            <td><?php echo esc_html($license->customer_name); ?></td>
-                            <td><?php echo esc_html($license->sku_id); ?></td>
-                            <td class="plan-name"><?php echo esc_html($license->plan_name); ?></td>
-                            <td><?php echo intval($license->enabled_units); ?></td>
-                            <td><?php echo intval($license->consumed_units); ?></td>
-                            <td><?php echo esc_html($license->status_text); ?></td>
-                            <td class="editable" data-field="cost_price">
-                                <?php echo number_format($license->cost_price, 2); ?>
-                            </td>
-                            <td class="editable" data-field="selling_price">
-                                <?php echo number_format($license->selling_price, 2); ?>
-                            </td>
-                            <td class="actions">
-                                <button class="m365-btn m365-btn-small edit-license" data-id="<?php echo $license->id; ?>">
-                                    ערוך
-                                </button>
-                                <button class="m365-btn m365-btn-small m365-btn-danger delete-license" data-id="<?php echo $license->id; ?>">
-                                    מחק
-                                </button>
+                            <td class="plan-name col-plan-display" data-field="plan_name"><?php echo esc_html($plan_display); ?></td>
+                            <td data-field="billing_account"><?php echo esc_html($license->billing_account); ?></td>
+                            <td class="editable-price col-numeric" data-field="selling_price"><?php echo esc_html($license->selling_price); ?></td>
+                            <td class="editable-price col-numeric" data-field="cost_price"><?php echo esc_html($license->cost_price); ?></td>
+                            <td class="col-numeric" data-field="total_purchased"><?php echo esc_html($total_purchased); ?></td>
+                            <td class="col-numeric" data-field="consumed_units"><?php echo esc_html($license->consumed_units); ?></td>
+                            <td class="col-numeric" data-field="available_units"><?php echo esc_html($available); ?></td>
+                            <td class="col-numeric" data-field="renewal_date"><?php echo esc_html($license->renewal_date); ?></td>
+                            <td class="col-numeric" data-field="billing_cycle"><?php echo esc_html($billing_display); ?></td>
+                            <td class="actions col-numeric">
+                                <button type="button" class="m365-btn m365-btn-small m365-btn-secondary edit-license">ערוך</button>
+                                <button type="button" class="m365-btn m365-btn-small m365-btn-danger delete-license" data-id="<?php echo esc_attr($license->id); ?>">מחק</button>
                             </td>
                         </tr>
                     <?php endforeach; ?>
-                <?php endif; ?>
+                    <tr class="kb-notes-row detail-row" data-customer="<?php echo esc_attr($cid); ?>" style="display:none;">
+                        <td colspan="10" class="kb-notes-cell">
+                            <strong>הערות:</strong>
+                            <span class="kb-notes-value"><?php echo esc_html($customer_notes); ?></span>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+            <?php endif; ?>
             </tbody>
         </table>
     </div>
 </div>
 
-<!-- Modal לעריכת רישיון -->
-<div id="edit-license-modal" class="m365-modal" style="display:none;">
+<div id="edit-license-modal" class="m365-modal">
     <div class="m365-modal-content">
         <span class="m365-modal-close">&times;</span>
         <h3>עריכת רישיון</h3>
         <form id="edit-license-form">
             <input type="hidden" id="license-id" name="id">
             <input type="hidden" id="license-customer-id" name="customer_id">
-            
-            <div class="form-group">
-                <label>שם תוכנית:</label>
-                <input type="text" id="license-plan-name" name="plan_name" readonly>
+            <div class="form-field">
+                <label for="license-plan-name">תוכנית ללקוח</label>
+                <input type="text" id="license-plan-name" name="plan_name" required>
             </div>
-            
-            <div class="form-group">
-                <label>עלות:</label>
-                <input type="number" step="0.01" id="license-cost" name="cost_price" required>
+            <div class="form-field">
+                <label for="license-billing-account">חשבון חיוב</label>
+                <input type="text" id="license-billing-account" name="billing_account">
             </div>
-            
-            <div class="form-group">
-                <label>מחיר ללקוח:</label>
+            <div class="form-field">
+                <label for="license-selling">מחיר ללקוח</label>
                 <input type="number" step="0.01" id="license-selling" name="selling_price" required>
             </div>
-            
-            <div class="form-group">
-                <label>כמות:</label>
-                <input type="number" id="license-quantity" name="quantity" required>
+            <div class="form-field">
+                <label for="license-cost">מחיר לנו</label>
+                <input type="number" step="0.01" id="license-cost" name="cost_price" required>
             </div>
-            
-            <div class="form-group">
-                <label>חיוב:</label>
+            <div class="form-field">
+                <label for="license-quantity">סה"כ נרכש</label>
+                <input type="number" id="license-quantity" name="quantity" min="0">
+            </div>
+            <div class="form-field">
+                <label for="license-billing-cycle">מחזור חיוב</label>
                 <select id="license-billing-cycle" name="billing_cycle">
-                    <option value="monthly">חודשי</option>
-                    <option value="yearly">שנתי</option>
+                    <option value="monthly">monthly</option>
+                    <option value="yearly">yearly</option>
                 </select>
             </div>
-            
-            <div class="form-group">
-                <label>מחזור חיוב:</label>
+            <div class="form-field">
+                <label for="license-billing-frequency">תדירות חיוב</label>
                 <input type="text" id="license-billing-frequency" name="billing_frequency">
             </div>
-            
+            <div class="form-field">
+                <label for="license-renewal-date">ת. חיוב</label>
+                <input type="date" id="license-renewal-date" name="renewal_date">
+            </div>
+            <div class="form-field">
+                <label for="license-notes">הערות</label>
+                <textarea id="license-notes" name="notes" rows="3" style="width:100%;"></textarea>
+            </div>
             <div class="form-actions">
                 <button type="submit" class="m365-btn m365-btn-primary">שמור</button>
-                <button type="button" class="m365-btn m365-modal-cancel">ביטול</button>
+                <button type="button" class="m365-btn m365-btn-secondary m365-modal-cancel">ביטול</button>
             </div>
         </form>
     </div>
