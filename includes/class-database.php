@@ -493,11 +493,17 @@ class M365_LM_Database {
         );
 
         foreach ($required_columns as $column => $definition) {
-            $before = $wpdb->query("SHOW COLUMNS FROM {$table_licenses} LIKE '" . esc_sql($column) . "'");
-            self::maybe_add_column($table_licenses, $column, $definition);
-            $after = $wpdb->query("SHOW COLUMNS FROM {$table_licenses} LIKE '" . esc_sql($column) . "'");
+            $has_column = $wpdb->get_var($wpdb->prepare("SHOW COLUMNS FROM {$table_licenses} LIKE %s", $column)) === $column;
 
-            if ($before === 0 && $after === 0) {
+            if ($has_column) {
+                continue;
+            }
+
+            $alter_sql = "ALTER TABLE {$table_licenses} ADD COLUMN {$definition}";
+            $wpdb->query($alter_sql);
+            $has_column_after = $wpdb->get_var($wpdb->prepare("SHOW COLUMNS FROM {$table_licenses} LIKE %s", $column)) === $column;
+
+            if (!$has_column_after) {
                 self::log_event(
                     'error',
                     'schema_check',
@@ -507,6 +513,7 @@ class M365_LM_Database {
                         'table'           => $table_licenses,
                         'column'          => $column,
                         'definition'      => $definition,
+                        'sql'             => $alter_sql,
                         'sql_error'       => $wpdb->last_error,
                         'current_columns' => $wpdb->get_col("SHOW COLUMNS FROM {$table_licenses}")
                     )
@@ -533,6 +540,7 @@ class M365_LM_Database {
                         'table'            => $table_licenses,
                         'missing_columns'  => $still_missing,
                         'instructions'     => 'DROP TABLE and reactivate the plugin, or run ALTER TABLE to add the missing columns.',
+                        'sql_error'        => $wpdb->last_error,
                     )
                 );
             }
