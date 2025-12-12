@@ -1,6 +1,56 @@
 jQuery(document).ready(function($) {
 
     const dcCustomers = Array.isArray(m365Ajax.dcCustomers) ? m365Ajax.dcCustomers : [];
+    const customerFormWrapper = $('#customer-form-wrapper');
+    const customerFormPlaceholder = $('#customer-form-placeholder');
+    let inlineFormRow = null;
+
+    function hideCustomerForm() {
+        if (inlineFormRow) {
+            inlineFormRow.remove();
+            inlineFormRow = null;
+        }
+
+        if (customerFormPlaceholder.length) {
+            customerFormPlaceholder.after(customerFormWrapper);
+        }
+
+        customerFormWrapper.hide();
+    }
+
+    function showCustomerFormUnderRow(row) {
+        if (!row || !row.length) {
+            return;
+        }
+
+        if (inlineFormRow) {
+            inlineFormRow.remove();
+        }
+
+        inlineFormRow = $('<tr class="inline-form-row"><td colspan="6"></td></tr>');
+        inlineFormRow.find('td').append(customerFormWrapper);
+        row.after(inlineFormRow);
+        customerFormWrapper.show();
+        $('html, body').animate({ scrollTop: customerFormWrapper.offset().top - 60 }, 300);
+    }
+
+    function showCustomerFormInPlaceholder() {
+        if (inlineFormRow) {
+            inlineFormRow.remove();
+            inlineFormRow = null;
+        }
+
+        if (customerFormPlaceholder.length) {
+            customerFormPlaceholder.after(customerFormWrapper);
+        }
+
+        customerFormWrapper.show();
+        $('html, body').animate({ scrollTop: customerFormWrapper.offset().top - 60 }, 300);
+    }
+
+    if (customerFormWrapper.length) {
+        customerFormWrapper.hide();
+    }
     
     // סנכרון רישיונות
     $('#sync-licenses').on('click', function() {
@@ -47,33 +97,39 @@ jQuery(document).ready(function($) {
     $(document).on('click', '.edit-license', function() {
         const row = $(this).closest('tr');
         const id = row.data('id');
-        
+
         // מילוי הנתונים מהשורה
         $('#license-id').val(id);
-        $('#license-plan-name').val(row.find('.plan-name').text());
+        $('#license-customer-id').val(row.data('customer'));
+        $('#license-plan-name').val(row.find('.plan-name').text().trim());
+        $('#license-billing-account').val(row.find('[data-field="billing_account"]').text().trim());
         $('#license-cost').val(row.find('[data-field="cost_price"]').text().trim());
         $('#license-selling').val(row.find('[data-field="selling_price"]').text().trim());
-        $('#license-quantity').val(row.data('enabled') || row.data('quantity') || 0);
+        $('#license-quantity').val(row.data('quantity') || row.data('enabled') || 0);
 
         const billingCycle = row.data('billing-cycle') || 'monthly';
         $('#license-billing-cycle').val(billingCycle);
         $('#license-billing-frequency').val(row.data('billing-frequency') || '');
-        
+        $('#license-renewal-date').val(row.find('[data-field="renewal_date"]').text().trim());
+        $('#license-notes').val(row.data('notes') || '');
+
         $('#edit-license-modal').fadeIn();
     });
-    
+
     // שמירת רישיון
     $('#edit-license-form').on('submit', function(e) {
         e.preventDefault();
-        
-        const formData = $(this).serializeArray();
-        formData.push({ name: 'action', value: 'm365_save_license' });
-        formData.push({ name: 'nonce', value: m365Ajax.nonce });
-        
+
+        const formData = new FormData(this);
+        formData.append('action', 'm365_save_license');
+        formData.append('nonce', m365Ajax.nonce);
+
         $.ajax({
             url: m365Ajax.ajaxurl,
             type: 'POST',
-            data: $.param(formData),
+            data: formData,
+            processData: false,
+            contentType: false,
             success: function(response) {
                 if (response.success) {
                     showMessage('success', 'הרישיון נשמר בהצלחה');
@@ -269,12 +325,9 @@ jQuery(document).ready(function($) {
         $('#customer-id').val('');
         $('#customer-lookup').val('');
         $('#customer-lookup-results').hide();
+        $('#customer-paste-source').val('');
 
-        // גלילה לטופס במקום פתיחת פופאפ
-        const formWrapper = $('#customer-form-wrapper');
-        if (formWrapper.length) {
-            $('html, body').animate({ scrollTop: formWrapper.offset().top - 80 }, 400);
-        }
+        showCustomerFormInPlaceholder();
     });
 
     // עריכת לקוח
@@ -301,9 +354,40 @@ jQuery(document).ready(function($) {
                 $('#customer-client-id').val(customer.client_id || '');
                 $('#customer-client-secret').val(customer.client_secret || '');
                 $('#customer-tenant-domain').val(customer.tenant_domain || '');
-                $('#customer-modal').fadeIn();
+                $('#customer-paste-source').val('');
+
+                const row = $(e.target).closest('tr');
+                if (row.length) {
+                    showCustomerFormUnderRow(row);
+                } else {
+                    showCustomerFormInPlaceholder();
+                }
             } else {
                 alert('לקוח לא נמצא');
+            }
+        });
+    });
+
+    $('#customer-paste-fill').on('click', function() {
+        const raw = ($('#customer-paste-source').val() || '').trim();
+        if (!raw) return;
+
+        const patterns = [
+            { selector: '#customer-tenant-id', regex: /Tenant\s*ID[:=\s]+([0-9a-fA-F-]{8,})/i },
+            { selector: '#customer-client-id', regex: /Client\s*ID[:=\s]+([0-9a-fA-F-]{8,})/i },
+            { selector: '#customer-client-id', regex: /Application\s*\(Client\)\s*ID[:=\s]+([0-9a-fA-F-]{8,})/i },
+            { selector: '#customer-client-secret', regex: /Client\s*Secret[:=\s]+([A-Za-z0-9\-_.+/=]{8,})/i },
+            { selector: '#customer-tenant-domain', regex: /Tenant\s*Domain[:=\s]+([\w\.-]+\.[\w\.\-]+)/i },
+            { selector: '#customer-number', regex: /Customer\s*Number[:=\s]+([\w-]+)/i },
+            { selector: '#customer-name', regex: /Customer\s*Name[:=\s]+(.+)/i },
+        ];
+
+        patterns.forEach(function(mapper) {
+            if ($(mapper.selector).length) {
+                const match = raw.match(mapper.regex);
+                if (match && match[1]) {
+                    $(mapper.selector).val(match[1].trim());
+                }
             }
         });
     });
@@ -390,11 +474,14 @@ jQuery(document).ready(function($) {
     $('#generate-api-script').on('click', function() {
         const customerId = $('#api-customer-select').val();
         const downloadBase = $('#api-customer-select').data('download-base') || '';
+        const button = $(this);
 
         if (!customerId) {
             alert('בחר לקוח');
             return;
         }
+
+        button.prop('disabled', true).text('יוצר סקריפט...');
 
         $.post(m365Ajax.ajaxurl, {
             action: 'kbbm_generate_script',
@@ -405,22 +492,42 @@ jQuery(document).ready(function($) {
                 const data = response.data;
                 $('#kbbm-script-preview').val(data.script);
                 $('#kbbm-script-modal').fadeIn();
-                $('#kbbm-download-script').attr('href', data.download_url || (downloadBase + customerId));
+                $('#api-script-output').show();
+                $('#api-script-text').val(data.script);
+                $('#download-api-script, #kbbm-download-script').attr('href', data.download_url || (downloadBase + customerId));
                 $('#kbbm-tenant-id').text(data.tenant_id || '');
                 $('#kbbm-client-id').text(data.client_id || '');
                 $('#kbbm-client-secret').text(data.client_secret || '');
                 $('#kbbm-tenant-domain').text(data.tenant_domain || '');
             } else if (response && typeof response.script === 'string') {
                 $('#kbbm-script-preview').val(response.script);
+                $('#api-script-output').show();
+                $('#api-script-text').val(response.script);
                 $('#kbbm-script-modal').fadeIn();
-                $('#kbbm-download-script').attr('href', downloadBase + customerId);
+                $('#kbbm-download-script, #download-api-script').attr('href', downloadBase + customerId);
             } else {
                 const message = response && response.data && response.data.message ? response.data.message : 'לא ניתן ליצור סקריפט עבור הלקוח הנבחר';
                 alert(message);
             }
         }).fail(function() {
             alert('שגיאה ביצירת הסקריפט');
+        }).always(function() {
+            button.prop('disabled', false).text('צור סקריפט');
         });
+    });
+
+    // פתיחה/סגירה של פירוט לקוחות בדף הראשי
+    $(document).on('click', '.customer-summary', function() {
+        const customerId = $(this).data('customer');
+        const relatedRows = $(`.license-row[data-customer='${customerId}'], .kb-notes-row[data-customer='${customerId}']`);
+
+        if (!relatedRows.length) {
+            return;
+        }
+
+        const isOpen = $(this).hasClass('open');
+        $(this).toggleClass('open');
+        relatedRows.toggle(!isOpen);
     });
 
     // העתקת סקריפט API
@@ -444,6 +551,11 @@ jQuery(document).ready(function($) {
     
     // סגירת Modal
     $('.m365-modal-close, .m365-modal-cancel').on('click', function() {
+        if ($(this).closest('#customer-form-wrapper').length) {
+            hideCustomerForm();
+            return;
+        }
+
         $(this).closest('.m365-modal, .kbbm-modal-overlay').fadeOut();
     });
     
@@ -453,6 +565,131 @@ jQuery(document).ready(function($) {
             $(this).fadeOut();
         }
     });
+
+    $('#kbbm-log-settings-form').on('submit', function(e) {
+        e.preventDefault();
+
+        const days = parseInt($('#kbbm-log-retention-days').val(), 10) || 120;
+
+        $.post(m365Ajax.ajaxurl, {
+            action: 'kbbm_save_settings',
+            nonce: m365Ajax.nonce,
+            log_retention_days: days
+        }, function(response) {
+            if (response && response.success) {
+                showMessage('success', (response.data && response.data.message) ? response.data.message : 'ההגדרות נשמרו');
+            } else {
+                const msg = response && response.data && response.data.message ? response.data.message : 'שמירת הגדרות נכשלה';
+                showMessage('error', msg);
+            }
+        }).fail(function() {
+            showMessage('error', 'שגיאה בשמירת ההגדרות');
+        });
+    });
+
+    const logTable = $('.kbbm-log-table');
+    if (logTable.length) {
+        const logHeaders = logTable.find('th.sortable');
+        const logSearch = $('#kbbm-log-search-input');
+        const logFilters = $('.kbbm-log-filter');
+        const columnFilters = [];
+        let sortState = { index: 0, dir: 'desc' };
+
+        logHeaders.each(function() {
+            const header = $(this);
+            const columnIndex = header.index();
+            const select = $('<select class="kbbm-log-column-filter"><option value="">הכל</option></select>');
+
+            logTable.find('tbody tr').each(function() {
+                const value = $(this).children('td').eq(columnIndex).text().trim();
+                if (value && select.find('option').filter(function() { return $(this).val() === value; }).length === 0) {
+                    const option = $('<option></option>').attr('value', value).text(value);
+                    select.append(option);
+                }
+            });
+
+            header.append($('<div class="kbbm-log-header-filter"></div>').append(select));
+            columnFilters.push(select);
+        });
+
+        function applyLogFilters() {
+            const searchTerm = (logSearch.val() || '').toLowerCase();
+            logTable.find('tbody tr').each(function() {
+                const row = $(this);
+                const cells = row.children('td');
+                const textMatch = !searchTerm || row.text().toLowerCase().indexOf(searchTerm) !== -1;
+                let filtersMatch = true;
+
+                logFilters.each(function() {
+                    const value = $(this).val();
+                    const field = $(this).data('field');
+                    if (!value) return;
+
+                    const dataVal = (row.data(field) || '').toString();
+                    if (field === 'tenant_domain') {
+                        if (dataVal.toLowerCase() !== value.toLowerCase()) {
+                            filtersMatch = false;
+                            return false;
+                        }
+                    } else if (field === 'customer') {
+                        if (String(row.data('customer')) !== String(value)) {
+                            filtersMatch = false;
+                            return false;
+                        }
+                    } else if (dataVal.toLowerCase() !== value.toLowerCase()) {
+                        filtersMatch = false;
+                        return false;
+                    }
+                });
+
+                if (filtersMatch) {
+                    columnFilters.forEach(function(select, idx) {
+                        if (!filtersMatch) return;
+                        const filterVal = select.val();
+                        if (!filterVal) return;
+
+                        const cellText = (cells.eq(idx).text() || '').trim();
+                        if (cellText !== filterVal) {
+                            filtersMatch = false;
+                        }
+                    });
+                }
+
+                row.toggle(textMatch && filtersMatch);
+            });
+        }
+
+        function sortLogTable(columnIndex) {
+            const tbody = logTable.find('tbody');
+            const rows = tbody.find('tr').get();
+            const newDir = (sortState.index === columnIndex && sortState.dir === 'asc') ? 'desc' : 'asc';
+            sortState = { index: columnIndex, dir: newDir };
+
+            rows.sort(function(a, b) {
+                const cellA = $(a).children('td').eq(columnIndex);
+                const cellB = $(b).children('td').eq(columnIndex);
+                const valA = (cellA.data('sort-value') || cellA.text()).toString().toLowerCase();
+                const valB = (cellB.data('sort-value') || cellB.text()).toString().toLowerCase();
+
+                if (valA < valB) return newDir === 'asc' ? -1 : 1;
+                if (valA > valB) return newDir === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            tbody.append(rows);
+        }
+
+        logHeaders.on('click', function() {
+            sortLogTable($(this).index());
+            applyLogFilters();
+        });
+
+        logSearch.on('input', applyLogFilters);
+        logFilters.on('change', applyLogFilters);
+        columnFilters.forEach(function(filter) {
+            filter.on('change', applyLogFilters);
+        });
+    }
     
     // פונקציית עזר - הצגת הודעה
     function showMessage(type, message) {
