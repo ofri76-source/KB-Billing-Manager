@@ -73,6 +73,11 @@ if (!empty($licenses)) {
             <h2>ניהול רישיונות Microsoft 365</h2>
         </div>
         <div class="m365-actions">
+            <form method="get" class="kbbm-period-form">
+                <label for="kbbm-billing-period">מחזור חיוב</label>
+                <input type="text" id="kbbm-billing-period" name="billing_period" value="<?php echo esc_attr($current_billing_period); ?>" placeholder="למשל: אפריל">
+                <button type="submit" class="m365-btn m365-btn-secondary">עדכן</button>
+            </form>
             <select id="customer-select">
                 <option value="">בחר לקוח לסנכרון</option>
                 <?php foreach ($customers as $customer): ?>

@@ -780,6 +780,78 @@ jQuery(document).ready(function($) {
         });
     });
 
+    // פתיחה/סגירה של פירוט לקוחות בדף הראשי
+    $(document).on('click', '.customer-summary', function() {
+        const customerId = $(this).data('customer');
+        const relatedRows = $(`.license-row[data-customer='${customerId}'], .kb-notes-row[data-customer='${customerId}']`);
+
+        if (!relatedRows.length) {
+            return;
+        }
+
+        const isOpen = $(this).hasClass('open');
+        $(this).toggleClass('open');
+        relatedRows.toggle(!isOpen);
+        updatePlansHeaderVisibility();
+    });
+
+    // עריכת סוגי רישיון (טאב הגדרות)
+    $(document).on('click', '.license-type-edit', function() {
+        const row = $(this).closest('tr');
+
+        $('#license-type-sku').val(row.data('sku'));
+        $('#license-type-name').val(row.data('name'));
+        $('#license-type-display-name').val(row.data('display-name'));
+        $('#license-type-cost').val(row.data('cost-price'));
+        $('#license-type-selling').val(row.data('selling-price'));
+        $('#license-type-cycle').val(row.data('billing-cycle'));
+        $('#license-type-frequency').val(row.data('billing-frequency'));
+        $('#license-type-show').prop('checked', Number(row.data('show-in-main')) === 1);
+
+        $('#license-type-modal').fadeIn();
+    });
+
+    $('#kbbm-license-type-form').on('submit', function(e) {
+        e.preventDefault();
+
+        const formData = {
+            action: 'm365_save_license_type',
+            nonce: m365Ajax.nonce,
+            sku: $('#license-type-sku').val(),
+            name: $('#license-type-name').val(),
+            display_name: $('#license-type-display-name').val(),
+            cost_price: $('#license-type-cost').val(),
+            selling_price: $('#license-type-selling').val(),
+            billing_cycle: $('#license-type-cycle').val(),
+            billing_frequency: $('#license-type-frequency').val(),
+            show_in_main: $('#license-type-show').is(':checked') ? 1 : 0,
+        };
+
+        $.post(m365Ajax.ajaxurl, formData, function(response) {
+            if (response && response.success) {
+                showMessage('success', response.data && response.data.message ? response.data.message : 'סוג הרישיון נשמר');
+                setTimeout(function() { location.reload(); }, 1000);
+            } else {
+                const msg = response && response.data && response.data.message ? response.data.message : 'שגיאה בשמירת סוג הרישיון';
+                showMessage('error', msg);
+            }
+        });
+    });
+
+    // פתיחה/סגירה של פירוט לקוחות בדף הראשי
+    $(document).on('click', '.customer-summary', function() {
+        const customerId = $(this).data('customer');
+        const relatedRows = $(`.license-row[data-customer='${customerId}'], .kb-notes-row[data-customer='${customerId}']`);
+
+        if (!relatedRows.length) {
+            return;
+        }
+
+        const isOpen = $(this).hasClass('open');
+        $(this).toggleClass('open');
+        relatedRows.toggle(!isOpen);
+    });
+
     // העתקת סקריפט API
     $('#kbbm-copy-script, #copy-api-script').on('click', function() {
         const scriptText = $('#kbbm-script-preview').val() || $('#api-script-text').val();
