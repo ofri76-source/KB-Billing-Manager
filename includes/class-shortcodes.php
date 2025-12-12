@@ -207,11 +207,14 @@ class M365_LM_Shortcodes {
             'id' => intval($_POST['id']),
             'customer_id' => intval($_POST['customer_id']),
             'plan_name' => sanitize_text_field($_POST['plan_name']),
+            'billing_account' => isset($_POST['billing_account']) ? sanitize_text_field($_POST['billing_account']) : '',
             'cost_price' => floatval($_POST['cost_price']),
             'selling_price' => floatval($_POST['selling_price']),
             'quantity' => intval($_POST['quantity']),
             'billing_cycle' => sanitize_text_field($_POST['billing_cycle']),
-            'billing_frequency' => sanitize_text_field($_POST['billing_frequency'])
+            'billing_frequency' => sanitize_text_field($_POST['billing_frequency']),
+            'renewal_date' => !empty($_POST['renewal_date']) ? sanitize_text_field($_POST['renewal_date']) : null,
+            'notes' => isset($_POST['notes']) ? sanitize_textarea_field($_POST['notes']) : '',
         );
         
         M365_LM_Database::save_license($data);
@@ -235,6 +238,9 @@ class M365_LM_Shortcodes {
         $logs      = M365_LM_Database::get_logs($args);
         $customers = M365_LM_Database::get_customers();
         $customers_by_id = array();
+        $levels = array();
+        $contexts = array();
+        $tenant_domains = array();
 
         if (!empty($customers)) {
             foreach ($customers as $c) {
@@ -242,9 +248,26 @@ class M365_LM_Shortcodes {
             }
         }
 
+        if (!empty($logs)) {
+            foreach ($logs as $log_item) {
+                if (!empty($log_item->level)) {
+                    $levels[] = $log_item->level;
+                }
+                if (!empty($log_item->context)) {
+                    $contexts[] = $log_item->context;
+                }
+
+                if (!empty($log_item->customer_id) && isset($customers_by_id[$log_item->customer_id])) {
+                    $tenant_domains[] = $customers_by_id[$log_item->customer_id]->tenant_domain ?? '';
+                }
+            }
+
+            $levels = array_unique(array_filter($levels));
+            $contexts = array_unique(array_filter($contexts));
+            $tenant_domains = array_unique(array_filter($tenant_domains));
+        }
+
         ob_start();
-        ?>
-        
         ?>
         <div class="m365-lm-container">
             <?php
@@ -264,23 +287,75 @@ class M365_LM_Shortcodes {
             <?php if (empty($logs)): ?>
                 <p>אין אירועים בלוג.</p>
             <?php else: ?>
+                <div class="kbbm-log-toolbar">
+                    <div class="kbbm-log-search">
+                        <label for="kbbm-log-search-input">חיפוש חופשי:</label>
+                        <input id="kbbm-log-search-input" type="text" placeholder="חיפוש בכל השדות">
+                    </div>
+                    <div class="kbbm-log-filters">
+                        <label>
+                            Level
+                            <select class="kbbm-log-filter" data-field="level">
+                                <option value="">הכל</option>
+                                <?php foreach ($levels as $level): ?>
+                                    <option value="<?php echo esc_attr($level); ?>"><?php echo esc_html($level); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </label>
+                        <label>
+                            Context
+                            <select class="kbbm-log-filter" data-field="context">
+                                <option value="">הכל</option>
+                                <?php foreach ($contexts as $context): ?>
+                                    <option value="<?php echo esc_attr($context); ?>"><?php echo esc_html($context); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </label>
+                        <label>
+                            לקוח
+                            <select class="kbbm-log-filter" data-field="customer">
+                                <option value="">הכל</option>
+                                <?php foreach ($customers as $customer): ?>
+                                    <option value="<?php echo esc_attr($customer->id); ?>"><?php echo esc_html($customer->customer_number . ' - ' . $customer->customer_name); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </label>
+                        <label>
+                            Tenant Domain
+                            <select class="kbbm-log-filter" data-field="tenant_domain">
+                                <option value="">הכל</option>
+                                <?php foreach ($tenant_domains as $domain): ?>
+                                    <option value="<?php echo esc_attr($domain); ?>"><?php echo esc_html($domain); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </label>
+                    </div>
+                </div>
                 <div class="m365-table-wrapper">
                     <table class="m365-table kbbm-log-table">
                         <thead>
                             <tr>
-                                <th>זמן</th>
-                                <th>Level</th>
-                                <th>Context</th>
-                                <th>לקוח</th>
-                                <th>הודעה</th>
+                                <th class="sortable" data-column="time">זמן</th>
+                                <th class="sortable" data-column="level">Level</th>
+                                <th class="sortable" data-column="context">Context</th>
+                                <th class="sortable" data-column="customer_number">מספר לקוח</th>
+                                <th class="sortable" data-column="customer_name">שם לקוח</th>
+                                <th class="sortable" data-column="tenant_domain">Tenant Domain</th>
+                                <th class="sortable" data-column="message">הודעה</th>
                             </tr>
                         </thead>
                         <tbody>
                         <?php foreach ($logs as $log):
                             $customer_label = '';
+                            $customer_number = '';
+                            $customer_name = '';
+                            $tenant_domain = '';
                             if (!empty($log->customer_id) && isset($customers_by_id[$log->customer_id])) {
                                 $c = $customers_by_id[$log->customer_id];
-                                $customer_label = esc_html($c->customer_number . ' - ' . $c->customer_name);
+                                $customer_number = $c->customer_number;
+                                $customer_name   = $c->customer_name;
+                                $tenant_domain   = isset($c->tenant_domain) ? $c->tenant_domain : '';
+                                $customer_label = esc_html($customer_number . ' - ' . $customer_name);
                             }
                             $row_class = '';
                             if ($log->level === 'error') {
@@ -291,12 +366,19 @@ class M365_LM_Shortcodes {
                                 $row_class = 'log-level-info';
                             }
                             ?>
-                            <tr class="<?php echo esc_attr($row_class); ?>">
-                                <td><?php echo esc_html($log->event_time); ?></td>
-                                <td><?php echo esc_html($log->level); ?></td>
-                                <td><?php echo esc_html($log->context); ?></td>
-                                <td><?php echo $customer_label; ?></td>
-                                <td>
+                            <tr class="<?php echo esc_attr($row_class); ?>"
+                                data-level="<?php echo esc_attr($log->level); ?>"
+                                data-context="<?php echo esc_attr($log->context); ?>"
+                                data-customer="<?php echo esc_attr($log->customer_id); ?>"
+                                data-tenant_domain="<?php echo esc_attr($tenant_domain); ?>"
+                            >
+                                <td data-sort-value="<?php echo esc_attr($log->event_time); ?>"><?php echo esc_html($log->event_time); ?></td>
+                                <td data-sort-value="<?php echo esc_attr($log->level); ?>"><?php echo esc_html($log->level); ?></td>
+                                <td data-sort-value="<?php echo esc_attr($log->context); ?>"><?php echo esc_html($log->context); ?></td>
+                                <td data-sort-value="<?php echo esc_attr($customer_number); ?>"><?php echo esc_html($customer_number); ?></td>
+                                <td data-sort-value="<?php echo esc_attr($customer_name); ?>"><?php echo esc_html($customer_name); ?></td>
+                                <td data-sort-value="<?php echo esc_attr($tenant_domain); ?>"><?php echo esc_html($tenant_domain); ?></td>
+                                <td data-sort-value="<?php echo esc_attr($log->message); ?>">
                                     <div class="kbbm-log-message"><?php echo esc_html($log->message); ?></div>
                                     <?php if (!empty($log->data)): ?>
                                         <pre class="kbbm-log-data"><?php echo esc_html($log->data); ?></pre>
