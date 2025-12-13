@@ -170,46 +170,15 @@ class M365_LM_Database {
 
     public static function save_customer($data) {
         global $wpdb;
+        $table = self::get_customers_table_name();
 
-        $table = $wpdb->prefix . 'kb_billing_customers';
-        $kb_ready = self::ensure_kb_customers_table();
-
-        if (!$kb_ready) {
-            self::log_event('error', 'save_customer', 'Failed to ensure kb_billing_customers table exists');
-            return new WP_Error('customers_table_missing', 'טבלת הלקוחות kb_billing_customers אינה זמינה');
-        }
-
-        $clean_data = $data;
-        $required_fields = array('customer_number', 'customer_name');
-        foreach ($required_fields as $field) {
-            if (empty($clean_data[$field])) {
-                return new WP_Error('missing_field', sprintf('שדה חובה חסר: %s', $field));
-            }
-        }
-
-        if (isset($clean_data['id']) && intval($clean_data['id']) > 0) {
-            $result = $wpdb->update($table, $clean_data, array('id' => intval($clean_data['id'])));
+        if (isset($data['id']) && $data['id'] > 0) {
+            $wpdb->update($table, $data, array('id' => $data['id']));
+            return $data['id'];
         } else {
-            $result = $wpdb->insert($table, $clean_data);
-            if ($result !== false) {
-                $clean_data['id'] = $wpdb->insert_id;
-            }
+            $wpdb->insert($table, $data);
+            return $wpdb->insert_id;
         }
-
-        if ($result === false) {
-            $error_message = !empty($wpdb->last_error) ? $wpdb->last_error : 'שגיאת מסד נתונים בשמירת הלקוח';
-            self::log_event(
-                'error',
-                'save_customer',
-                $error_message,
-                isset($clean_data['id']) ? intval($clean_data['id']) : null,
-                array('data' => $clean_data, 'sql_error' => $wpdb->last_error)
-            );
-
-            return new WP_Error('db_error', $error_message);
-        }
-
-        return isset($clean_data['id']) ? intval($clean_data['id']) : null;
     }
 
     public static function get_customers_by_source($source = 'partner') {
@@ -538,42 +507,14 @@ class M365_LM_Database {
         $kb_table      = $wpdb->prefix . 'kb_billing_customers';
         $legacy_table  = $wpdb->prefix . 'm365_customers';
 
-        if (self::ensure_kb_customers_table()) {
+        $kb_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $kb_table)) === $kb_table;
+        $legacy_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $legacy_table)) === $legacy_table;
+
+        if ($kb_exists) {
             return $kb_table;
         }
 
-        $legacy_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $legacy_table)) === $legacy_table;
-        if ($legacy_exists) {
-            self::log_event('warning', 'customers_table_fallback', 'Falling back to legacy customers table');
-            return $legacy_table;
-        }
-
-        // last resort: return the intended new table name so dbDelta can create it later
-        return $kb_table;
-    }
-
-    /**
-     * Ensure kb_billing_customers exists so that all CRUD writes hit the new schema.
-     */
-    public static function ensure_kb_customers_table() {
-        global $wpdb;
-
-        $kb_table = $wpdb->prefix . 'kb_billing_customers';
-        $exists   = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $kb_table)) === $kb_table;
-
-        if ($exists) {
-            return true;
-        }
-
-        // Try to create the tables and re-check.
-        self::create_tables();
-        $exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $kb_table)) === $kb_table;
-
-        if (!$exists) {
-            self::log_event('error', 'customers_table_missing', 'kb_billing_customers table could not be created');
-        }
-
-        return $exists;
+        return $legacy_exists ? $legacy_table : $kb_table;
     }
 
     /**
