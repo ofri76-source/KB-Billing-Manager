@@ -786,6 +786,20 @@ jQuery(document).ready(function($) {
         });
     });
 
+    // פתיחה/סגירה של פירוט לקוחות בדף הראשי
+    $(document).on('click', '.customer-summary', function() {
+        const customerId = $(this).data('customer');
+        const relatedRows = $(`.license-row[data-customer='${customerId}'], .kb-notes-row[data-customer='${customerId}']`);
+
+        if (!relatedRows.length) {
+            return;
+        }
+
+        const isOpen = $(this).hasClass('open');
+        $(this).toggleClass('open');
+        relatedRows.toggle(!isOpen);
+    });
+
     // העתקת סקריפט API
     $('#kbbm-copy-script, #copy-api-script').on('click', function() {
         const scriptText = $('#kbbm-script-preview').val() || $('#api-script-text').val();

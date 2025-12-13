@@ -378,6 +378,204 @@ class M365_LM_Database {
         return $wpdb->get_results(
             $wpdb->prepare("SELECT sku, name, display_name, show_in_main, default_cost_price AS cost_price, default_selling_price AS selling_price, default_billing_cycle AS billing_cycle, default_billing_frequency AS billing_frequency FROM {$types_table} WHERE is_active = %d ORDER BY name", 1)
         );
+
+        if ($existing && isset($existing->id)) {
+            return $wpdb->update($types_table, $payload, array('id' => $existing->id));
+        }
+
+        return $wpdb->insert($types_table, $payload);
+    }
+
+    /**
+     * קבלת סוגי רישיונות ממוזגים מהטבלה הייעודית ומהרישיונות שנשמרו בפועל
+     */
+    public static function get_combined_license_types() {
+        global $wpdb;
+
+        $types_table    = $wpdb->prefix . 'kb_billing_license_types';
+        $licenses_table = $wpdb->prefix . 'm365_licenses';
+
+        $types_exists    = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $types_table)) === $types_table;
+        $licenses_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $licenses_table)) === $licenses_table;
+
+        if (!$licenses_exists) {
+            return $types_exists ? self::get_license_types() : array();
+        }
+
+        $types = $types_exists ? self::get_license_types() : array();
+        $indexed = array();
+
+        foreach ($types as $type) {
+            $key = !empty($type->sku) ? $type->sku : ('plan_' . md5($type->name));
+            $indexed[$key] = $type;
+        }
+
+        $distinct_licenses = $wpdb->get_results(
+            "SELECT sku_id AS sku, plan_name, MAX(cost_price) AS cost_price, MAX(selling_price) AS selling_price, MAX(billing_cycle) AS billing_cycle, MAX(billing_frequency) AS billing_frequency FROM {$licenses_table} WHERE is_deleted = 0 GROUP BY sku_id, plan_name"
+        );
+
+        foreach ($distinct_licenses as $license) {
+            if (empty($license->sku) && !empty($license->plan_name)) {
+                $license->sku = 'plan_' . md5($license->plan_name);
+            }
+
+            if (empty($license->sku)) {
+                continue;
+            }
+
+            if (!isset($indexed[$license->sku])) {
+                $license->name          = $license->plan_name;
+                $license->display_name  = $license->plan_name;
+                $license->show_in_main  = 1;
+                $indexed[$license->sku] = $license;
+            } else {
+                $existing = $indexed[$license->sku];
+                $existing->name = $existing->name ?: $license->plan_name;
+                if (empty($existing->display_name)) {
+                    $existing->display_name = $license->plan_name;
+                }
+                if (!isset($existing->billing_cycle) || $existing->billing_cycle === '') {
+                    $existing->billing_cycle = $license->billing_cycle;
+                }
+                if (!isset($existing->billing_frequency) || $existing->billing_frequency === '') {
+                    $existing->billing_frequency = $license->billing_frequency;
+                }
+                if (!isset($existing->cost_price)) {
+                    $existing->cost_price = $license->cost_price;
+                }
+                if (!isset($existing->selling_price)) {
+                    $existing->selling_price = $license->selling_price;
+                }
+                $indexed[$license->sku] = $existing;
+            }
+        }
+
+        return array_values($indexed);
+    }
+
+    /**
+     * שמירת סוג רישיון (upsert לפי SKU)
+     */
+    public static function save_license_type($data) {
+        global $wpdb;
+
+        $types_table = $wpdb->prefix . 'kb_billing_license_types';
+
+        $existing = $wpdb->get_row($wpdb->prepare("SELECT id FROM {$types_table} WHERE sku = %s", $data['sku']));
+
+        $payload = array(
+            'sku'                     => $data['sku'],
+            'name'                    => $data['name'],
+            'display_name'            => isset($data['display_name']) ? $data['display_name'] : $data['name'],
+            'default_cost_price'      => isset($data['cost_price']) ? $data['cost_price'] : 0,
+            'default_selling_price'   => isset($data['selling_price']) ? $data['selling_price'] : 0,
+            'default_billing_cycle'   => isset($data['billing_cycle']) ? $data['billing_cycle'] : 'monthly',
+            'default_billing_frequency' => isset($data['billing_frequency']) ? $data['billing_frequency'] : 1,
+            'show_in_main'            => isset($data['show_in_main']) ? intval($data['show_in_main']) : 1,
+            'is_active'               => 1,
+        );
+
+        if ($existing && isset($existing->id)) {
+            return $wpdb->update($types_table, $payload, array('id' => $existing->id));
+        }
+
+        return $wpdb->insert($types_table, $payload);
+    }
+
+    /**
+     * קבלת סוגי רישיונות ממוזגים מהטבלה הייעודית ומהרישיונות שנשמרו בפועל
+     */
+    public static function get_combined_license_types() {
+        global $wpdb;
+
+        $types_table    = $wpdb->prefix . 'kb_billing_license_types';
+        $licenses_table = $wpdb->prefix . 'm365_licenses';
+
+        $types_exists    = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $types_table)) === $types_table;
+        $licenses_exists = $wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $licenses_table)) === $licenses_table;
+
+        if (!$licenses_exists) {
+            return $types_exists ? self::get_license_types() : array();
+        }
+
+        $types = $types_exists ? self::get_license_types() : array();
+        $indexed = array();
+
+        foreach ($types as $type) {
+            $key = !empty($type->sku) ? $type->sku : ('plan_' . md5($type->name));
+            $indexed[$key] = $type;
+        }
+
+        $distinct_licenses = $wpdb->get_results(
+            "SELECT sku_id AS sku, plan_name, MAX(cost_price) AS cost_price, MAX(selling_price) AS selling_price, MAX(billing_cycle) AS billing_cycle, MAX(billing_frequency) AS billing_frequency FROM {$licenses_table} WHERE is_deleted = 0 GROUP BY sku_id, plan_name"
+        );
+
+        foreach ($distinct_licenses as $license) {
+            if (empty($license->sku) && !empty($license->plan_name)) {
+                $license->sku = 'plan_' . md5($license->plan_name);
+            }
+
+            if (empty($license->sku)) {
+                continue;
+            }
+
+            if (!isset($indexed[$license->sku])) {
+                $license->name          = $license->plan_name;
+                $license->display_name  = $license->plan_name;
+                $license->show_in_main  = 1;
+                $indexed[$license->sku] = $license;
+            } else {
+                $existing = $indexed[$license->sku];
+                $existing->name = $existing->name ?: $license->plan_name;
+                if (empty($existing->display_name)) {
+                    $existing->display_name = $license->plan_name;
+                }
+                if (!isset($existing->billing_cycle) || $existing->billing_cycle === '') {
+                    $existing->billing_cycle = $license->billing_cycle;
+                }
+                if (!isset($existing->billing_frequency) || $existing->billing_frequency === '') {
+                    $existing->billing_frequency = $license->billing_frequency;
+                }
+                if (!isset($existing->cost_price)) {
+                    $existing->cost_price = $license->cost_price;
+                }
+                if (!isset($existing->selling_price)) {
+                    $existing->selling_price = $license->selling_price;
+                }
+                $indexed[$license->sku] = $existing;
+            }
+        }
+
+        return array_values($indexed);
+    }
+
+    /**
+     * שמירת סוג רישיון (upsert לפי SKU)
+     */
+    public static function save_license_type($data) {
+        global $wpdb;
+
+        $types_table = $wpdb->prefix . 'kb_billing_license_types';
+
+        $existing = $wpdb->get_row($wpdb->prepare("SELECT id FROM {$types_table} WHERE sku = %s", $data['sku']));
+
+        $payload = array(
+            'sku'                     => $data['sku'],
+            'name'                    => $data['name'],
+            'display_name'            => isset($data['display_name']) ? $data['display_name'] : $data['name'],
+            'default_cost_price'      => isset($data['cost_price']) ? $data['cost_price'] : 0,
+            'default_selling_price'   => isset($data['selling_price']) ? $data['selling_price'] : 0,
+            'default_billing_cycle'   => isset($data['billing_cycle']) ? $data['billing_cycle'] : 'monthly',
+            'default_billing_frequency' => isset($data['billing_frequency']) ? $data['billing_frequency'] : 1,
+            'show_in_main'            => isset($data['show_in_main']) ? intval($data['show_in_main']) : 1,
+            'is_active'               => 1,
+        );
+
+        if ($existing && isset($existing->id)) {
+            return $wpdb->update($types_table, $payload, array('id' => $existing->id));
+        }
+
+        return $wpdb->insert($types_table, $payload);
     }
 
     /**
