@@ -195,11 +195,17 @@ class M365_LM_Admin {
         }
         
         $result = M365_LM_Database::save_customer($data);
-        
+
+        if (is_wp_error($result)) {
+            $message = $result->get_error_message();
+            wp_send_json_error(array('message' => $message));
+        }
+
         if ($result) {
             wp_send_json_success(array('message' => 'לקוח נשמר בהצלחה'));
         } else {
-            wp_send_json_error(array('message' => 'שגיאה בשמירת הלקוח'));
+            $error = isset($GLOBALS['wpdb']->last_error) ? $GLOBALS['wpdb']->last_error : 'שגיאה בשמירת הלקוח';
+            wp_send_json_error(array('message' => $error));
         }
     }
     

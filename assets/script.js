@@ -56,21 +56,36 @@ jQuery(document).ready(function($) {
         // legacy helper retained for compatibility; headers now live inside detail rows
     }
 
-    $(document).on('click', '.kb-toggle-details, tr.customer-summary', function(e) {
-        e.preventDefault();
-        const summary = $(this).closest('tr.customer-summary');
-        const details = summary.next('tr.customer-details');
-
-        if (!summary.length || !details.length) {
+    function toggleCustomerDetailsRow(summaryRow) {
+        if (!summaryRow || !summaryRow.length) {
             return;
         }
 
-        details.toggle();
-
-        const toggleBtn = summary.find('.kb-toggle-details');
-        if (toggleBtn.length) {
-            toggleBtn.text(details.is(':visible') ? '▲' : '▼');
+        const details = summaryRow.nextAll('tr.customer-details').first();
+        if (!details.length) {
+            return;
         }
+
+        const shouldShow = !details.is(':visible');
+        details.toggle(shouldShow);
+
+        const toggleBtn = summaryRow.find('.kb-toggle-details');
+        if (toggleBtn.length) {
+            toggleBtn.text(shouldShow ? '▲' : '▼');
+        }
+    }
+
+    $(document).on('click', '.kb-toggle-details', function(e) {
+        e.preventDefault();
+        const summary = $(this).closest('tr.customer-summary');
+        toggleCustomerDetailsRow(summary);
+    });
+
+    $(document).on('click', 'tr.customer-summary', function(e) {
+        if ($(e.target).closest('.kb-toggle-details').length) {
+            return;
+        }
+        toggleCustomerDetailsRow($(this));
     });
 
     // סנכרון רישיונות
@@ -522,10 +537,10 @@ jQuery(document).ready(function($) {
 
         const patterns = [
             { selector: '#customer-tenant-id', regex: /Tenant\s*ID[:=\s]+([0-9a-fA-F-]{8,})/i },
-            { selector: '#customer-client-id', regex: /Client\s*ID[:=\s]+([0-9a-fA-F-]{8,})/i },
             { selector: '#customer-client-id', regex: /Application\s*\(Client\)\s*ID[:=\s]+([0-9a-fA-F-]{8,})/i },
-            { selector: '#customer-client-secret', regex: /Client\s*Secret[:=\s]+([A-Za-z0-9\-_.+/=]{8,})/i },
-            { selector: '#customer-tenant-domain', regex: /Tenant\s*Domain[:=\s]+([\w\.-]+\.[\w\.\-]+)/i },
+            { selector: '#customer-client-id', regex: /Client\s*ID[:=\s]+([0-9a-fA-F-]{8,})/i },
+            { selector: '#customer-client-secret', regex: /(Application\s*)?Client\s*Secret[:=\s]+([A-Za-z0-9\-_.+/=]{8,})/i, group: 2 },
+            { selector: '#customer-tenant-domain', regex: /Tenant\s*(Primary\s*)?Domain[:=\s]+([\w.-]+\.[\w.-]+)/i, group: 2 },
             { selector: '#customer-number', regex: /Customer\s*Number[:=\s]+([\w-]+)/i },
             { selector: '#customer-name', regex: /Customer\s*Name[:=\s]+(.+)/i },
         ];
@@ -533,8 +548,9 @@ jQuery(document).ready(function($) {
         patterns.forEach(function(mapper) {
             if ($(mapper.selector).length) {
                 const match = raw.match(mapper.regex);
-                if (match && match[1]) {
-                    $(mapper.selector).val(match[1].trim());
+                const valueIndex = mapper.group && match ? mapper.group : 1;
+                if (match && match[valueIndex]) {
+                    $(mapper.selector).val(match[valueIndex].trim());
                 }
             }
         });
@@ -662,29 +678,6 @@ jQuery(document).ready(function($) {
         }).always(function() {
             button.prop('disabled', false).text('צור סקריפט');
         });
-    });
-
-    // פתיחה/סגירה של פירוט לקוחות בדף הראשי
-    $(document).on('click', '.customer-summary', function() {
-        const customerId = $(this).data('customer');
-        const relatedRows = $(`.plans-header-row[data-customer='${customerId}'], .license-row[data-customer='${customerId}'], .kb-notes-row[data-customer='${customerId}']`);
-
-        if (!relatedRows.length) {
-            return;
-        }
-
-        const isOpen = $(this).hasClass('open');
-        $(this).toggleClass('open');
-
-        if (isOpen) {
-            relatedRows.hide();
-            updatePlansHeaderVisibility(customerId, false);
-        } else {
-            relatedRows.each(function() {
-                $(this).css('display', 'table-row');
-            });
-            updatePlansHeaderVisibility(customerId, true);
-        }
     });
 
     // פילטרים למסך התראות
@@ -832,21 +825,6 @@ jQuery(document).ready(function($) {
         });
     });
 
-    // פתיחה/סגירה של פירוט לקוחות בדף הראשי
-    $(document).on('click', '.customer-summary', function() {
-        const customerId = $(this).data('customer');
-        const relatedRows = $(`.license-row[data-customer='${customerId}'], .kb-notes-row[data-customer='${customerId}']`);
-
-        if (!relatedRows.length) {
-            return;
-        }
-
-        const isOpen = $(this).hasClass('open');
-        $(this).toggleClass('open');
-        relatedRows.toggle(!isOpen);
-        updatePlansHeaderVisibility();
-    });
-
     // עריכת סוגי רישיון (טאב הגדרות)
     $(document).on('click', '.license-type-edit', function() {
         const row = $(this).closest('tr');
@@ -888,20 +866,6 @@ jQuery(document).ready(function($) {
                 showMessage('error', msg);
             }
         });
-    });
-
-    // פתיחה/סגירה של פירוט לקוחות בדף הראשי
-    $(document).on('click', '.customer-summary', function() {
-        const customerId = $(this).data('customer');
-        const relatedRows = $(`.license-row[data-customer='${customerId}'], .kb-notes-row[data-customer='${customerId}']`);
-
-        if (!relatedRows.length) {
-            return;
-        }
-
-        const isOpen = $(this).hasClass('open');
-        $(this).toggleClass('open');
-        relatedRows.toggle(!isOpen);
     });
 
     // העתקת סקריפט API
