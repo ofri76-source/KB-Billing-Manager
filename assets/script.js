@@ -52,20 +52,26 @@ jQuery(document).ready(function($) {
         customerFormWrapper.hide();
     }
 
-    function updatePlansHeaderVisibility(customerId, isOpen) {
-        const selector = customerId ? `.plans-header-row[data-customer='${customerId}']` : '.plans-header-row';
-        const targetRows = $(selector);
+    function updatePlansHeaderVisibility() {
+        // legacy helper retained for compatibility; headers now live inside detail rows
+    }
 
-        if (typeof isOpen !== 'undefined') {
-            targetRows.toggleClass('visible', isOpen);
-            targetRows.css('display', isOpen ? 'table-row' : 'none');
+    $(document).on('click', '.kb-toggle-details, tr.customer-summary', function(e) {
+        e.preventDefault();
+        const summary = $(this).closest('tr.customer-summary');
+        const details = summary.next('tr.customer-details');
+
+        if (!summary.length || !details.length) {
             return;
         }
 
-        const hasVisible = $('.license-row:visible').length > 0;
-        targetRows.toggleClass('visible', hasVisible);
-        targetRows.css('display', hasVisible ? 'table-row' : 'none');
-    }
+        details.toggle();
+
+        const toggleBtn = summary.find('.kb-toggle-details');
+        if (toggleBtn.length) {
+            toggleBtn.text(details.is(':visible') ? '▲' : '▼');
+        }
+    });
 
     // סנכרון רישיונות
     $('#sync-licenses').on('click', function() {
@@ -777,82 +783,6 @@ jQuery(document).ready(function($) {
                 const msg = response && response.data && response.data.message ? response.data.message : 'שגיאה בשמירת סוג הרישיון';
                 showMessage('error', msg);
             }
-        });
-    });
-
-    // פתיחה/סגירה של פירוט לקוחות בדף הראשי
-    $(document).on('click', '.customer-summary', function() {
-        const customerId = $(this).data('customer');
-        const relatedRows = $(`.plans-header-row[data-customer='${customerId}'], .license-row[data-customer='${customerId}'], .kb-notes-row[data-customer='${customerId}']`);
-
-        if (!relatedRows.length) {
-            return;
-        }
-
-        const isOpen = $(this).hasClass('open');
-        $(this).toggleClass('open');
-
-        if (isOpen) {
-            relatedRows.hide();
-            updatePlansHeaderVisibility(customerId, false);
-        } else {
-            relatedRows.each(function() {
-                $(this).css('display', 'table-row');
-            });
-            updatePlansHeaderVisibility(customerId, true);
-        }
-    });
-
-    // פילטרים למסך התראות
-    function applyAlertsFilters() {
-        const customer = ($('#alerts-filter-customer').val() || '').toLowerCase();
-        const license  = ($('#alerts-filter-license').val() || '').toLowerCase();
-        const fromVal  = $('#alerts-filter-from').val();
-        const toVal    = $('#alerts-filter-to').val();
-
-        const fromDate = fromVal ? new Date(fromVal) : null;
-        const toDate   = toVal ? new Date(toVal + 'T23:59:59') : null;
-
-        $('#kbbm-alerts-table tbody tr').each(function() {
-            const row = $(this);
-            let show = true;
-
-            if (customer) {
-                const haystack = ((row.data('customer-name') || '') + ' ' + (row.data('customer-number') || '')).toLowerCase();
-                if (!haystack.includes(customer)) {
-                    show = false;
-                }
-            }
-
-            if (show && license) {
-                const haystack = ((row.data('license-name') || '') + ' ' + (row.data('license-sku') || '')).toLowerCase();
-                if (!haystack.includes(license)) {
-                    show = false;
-                }
-            }
-
-            if (show && (fromDate || toDate)) {
-                const rowTime = new Date(row.data('event-time'));
-                if (fromDate && rowTime < fromDate) {
-                    show = false;
-                }
-                if (toDate && rowTime > toDate) {
-                    show = false;
-                }
-            }
-
-            row.toggle(show);
-        });
-    }
-
-    if ($('#kbbm-alerts-table').length) {
-        $('#alerts-filter-customer, #alerts-filter-license, #alerts-filter-from, #alerts-filter-to').on('input change', function() {
-            applyAlertsFilters();
-        });
-
-        $('#alerts-reset-filters').on('click', function() {
-            $('#alerts-filter-customer, #alerts-filter-license, #alerts-filter-from, #alerts-filter-to').val('');
-            applyAlertsFilters();
         });
 
         applyAlertsFilters();

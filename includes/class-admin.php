@@ -182,9 +182,13 @@ class M365_LM_Admin {
             'customer_name' => sanitize_text_field($_POST['customer_name']),
             'tenant_id' => sanitize_text_field($_POST['tenant_id']),
             'client_id' => sanitize_text_field($_POST['client_id']),
-            'client_secret' => sanitize_text_field($_POST['client_secret']),
             'tenant_domain' => sanitize_text_field($_POST['tenant_domain'])
         );
+
+        $raw_secret = isset($_POST['client_secret']) ? trim(wp_unslash($_POST['client_secret'])) : '';
+        if ($raw_secret !== '') {
+            $data['client_secret'] = $raw_secret;
+        }
         
         if (!empty($_POST['id'])) {
             $data['id'] = intval($_POST['id']);
