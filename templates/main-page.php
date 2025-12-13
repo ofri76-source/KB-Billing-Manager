@@ -76,11 +76,6 @@ if (!empty($licenses)) {
             <h2>ניהול רישיונות Microsoft 365</h2>
         </div>
         <div class="m365-actions">
-            <form method="get" class="kbbm-period-form">
-                <label for="kbbm-billing-period">מחזור חיוב</label>
-                <input type="text" id="kbbm-billing-period" name="billing_period" value="<?php echo esc_attr($current_billing_period); ?>" placeholder="למשל: אפריל">
-                <button type="submit" class="m365-btn m365-btn-secondary">עדכן</button>
-            </form>
             <select id="customer-select">
                 <option value="">בחר לקוח לסנכרון</option>
                 <?php foreach ($customers as $customer): ?>
@@ -153,7 +148,6 @@ if (!empty($licenses)) {
                                             <th class="col-numeric">בשימוש</th>
                                             <th class="col-numeric">פנוי</th>
                                             <th class="col-numeric">ת. חיוב</th>
-                                            <th class="col-numeric">חודשי / שנתי</th>
                                             <th class="col-numeric">פעולות</th>
                                         </tr>
                                     </thead>
@@ -162,13 +156,9 @@ if (!empty($licenses)) {
                                             <?php
                                                 $total_purchased = ($license->quantity > 0) ? $license->quantity : $license->enabled_units;
                                                 $available = $total_purchased - $license->consumed_units;
-                                                $billing_display = $license->billing_cycle;
-                                                if (!empty($license->billing_frequency)) {
-                                                    $billing_display .= ' / ' . $license->billing_frequency;
-                                                }
-                                                $plan_display = isset($license->display_plan_name) ? $license->display_plan_name : $license->plan_name;
-                                            ?>
-                                            <tr class="license-row"
+                                            $plan_display = isset($license->display_plan_name) ? $license->display_plan_name : $license->plan_name;
+                                        ?>
+                                        <tr class="license-row"
                                                 data-id="<?php echo esc_attr($license->id); ?>"
                                                 data-customer="<?php echo esc_attr($cid); ?>"
                                                 data-billing-cycle="<?php echo esc_attr($license->billing_cycle); ?>"
@@ -185,7 +175,6 @@ if (!empty($licenses)) {
                                                 <td class="col-numeric" data-field="consumed_units"><?php echo esc_html($license->consumed_units); ?></td>
                                                 <td class="col-numeric" data-field="available_units"><?php echo esc_html($available); ?></td>
                                                 <td class="col-numeric" data-field="renewal_date"><?php echo esc_html($license->renewal_date); ?></td>
-                                                <td class="col-numeric" data-field="billing_cycle"><?php echo esc_html($billing_display); ?></td>
                                                 <td class="actions col-numeric">
                                                     <button type="button" class="m365-btn m365-btn-small m365-btn-secondary edit-license">ערוך</button>
                                                     <button type="button" class="m365-btn m365-btn-small m365-btn-danger delete-license" data-id="<?php echo esc_attr($license->id); ?>">מחק</button>
@@ -193,7 +182,7 @@ if (!empty($licenses)) {
                                             </tr>
                                         <?php endforeach; ?>
                                         <tr class="kb-notes-row" data-customer="<?php echo esc_attr($cid); ?>">
-                                            <td colspan="10" class="kb-notes-cell">
+                                            <td colspan="9" class="kb-notes-cell">
                                                 <strong>הערות:</strong>
                                                 <span class="kb-notes-value"><?php echo esc_html($customer_notes); ?></span>
                                             </td>
