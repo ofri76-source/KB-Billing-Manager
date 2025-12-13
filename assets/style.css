@@ -66,22 +66,6 @@ body.page-id-14296 .container {
     text-overflow: ellipsis;
 }
 
-.customer-summary {
-    cursor: pointer;
-}
-
-.customer-summary .kb-toggle-details {
-    cursor: pointer;
-}
-
-.customer-details td {
-    padding: 0;
-}
-
-.customer-details .inner-wrap {
-    padding: 12px;
-}
-
 .kbbm-details-table th.col-numeric,
 .kbbm-details-table td.col-numeric {
     width: 6%;
