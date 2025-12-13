@@ -39,7 +39,7 @@ class M365_LM_Shortcodes {
         $active = 'main';
         $licenses = M365_LM_Database::get_licenses();
         $customers = M365_LM_Database::get_customers();
-        $license_types = M365_LM_Database::get_combined_license_types();
+        $license_types = M365_LM_Database::get_license_types_combined();
         include M365_LM_PLUGIN_DIR . 'templates/main-page.php';
         return ob_get_clean();
     }
@@ -61,7 +61,7 @@ class M365_LM_Shortcodes {
         ob_start();
         $active = 'settings';
         $customers = M365_LM_Database::get_customers();
-        $license_types = M365_LM_Database::get_combined_license_types();
+        $license_types = M365_LM_Database::get_license_types_combined();
         $partner_settings = M365_LM_Database::get_partner_settings();
         $partner_import_status = M365_LM_Database::get_partner_import_status();
         $partner_bulk_status   = M365_LM_Database::get_partner_bulk_sync_status();
