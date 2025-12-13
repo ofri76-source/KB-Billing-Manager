@@ -57,7 +57,6 @@ class M365_LM_Partner_Connector {
         $body_str = wp_remote_retrieve_body($response);
 
         if ($code < 200 || $code >= 300) {
-            $body_excerpt = mb_substr($body_str, 0, 2048);
             M365_LM_Database::log_event(
                 'error',
                 $context,
@@ -65,14 +64,10 @@ class M365_LM_Partner_Connector {
                 null,
                 array(
                     'status'  => $code,
-                    'body'    => $body_excerpt,
+                    'body'    => mb_substr($body_str, 0, 2048),
                 )
             );
-            return new WP_Error(
-                'partner_token_failed',
-                sprintf('Partner token request failed (HTTP %s)', $code),
-                array('status' => $code, 'body' => $body_excerpt)
-            );
+            return new WP_Error('partner_token_failed', 'Failed to obtain partner token');
         }
 
         $decoded = json_decode($body_str, true);
@@ -122,7 +117,6 @@ class M365_LM_Partner_Connector {
         $body_str = wp_remote_retrieve_body($response);
 
         if ($code < 200 || $code >= 300) {
-            $body_excerpt = mb_substr($body_str, 0, 2048);
             M365_LM_Database::log_event(
                 'error',
                 'partner_import_customers',
@@ -130,14 +124,10 @@ class M365_LM_Partner_Connector {
                 null,
                 array(
                     'status' => $code,
-                    'body'   => $body_excerpt,
+                    'body'   => mb_substr($body_str, 0, 2048),
                 )
             );
-            return new WP_Error(
-                'partner_customers_failed',
-                sprintf('Partner customers request failed (HTTP %s)', $code),
-                array('status' => $code, 'body' => $body_excerpt)
-            );
+            return new WP_Error('partner_customers_failed', 'Failed to fetch partner customers');
         }
 
         $decoded = json_decode($body_str, true);
