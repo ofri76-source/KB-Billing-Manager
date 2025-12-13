@@ -214,6 +214,7 @@
                     <thead>
                         <tr>
                             <th>שם רישיון (API)</th>
+                            <th>מק"ט</th>
                             <th>שם לתצוגה</th>
                             <th class="col-cost">מחיר רכישה</th>
                             <th class="col-sell">מחיר ללקוח</th>
@@ -237,6 +238,7 @@
                                     data-show-in-main="<?php echo isset($type->show_in_main) ? esc_attr($type->show_in_main) : 1; ?>"
                                 >
                                     <td><?php echo esc_html($type->name); ?></td>
+                                    <td><?php echo esc_html($type->sku); ?></td>
                                     <td><?php echo esc_html($type->display_name ?? $type->name); ?></td>
                                     <td class="col-cost"><?php echo esc_html($type->cost_price); ?></td>
                                     <td class="col-sell"><?php echo esc_html($type->selling_price); ?></td>
@@ -248,7 +250,7 @@
                             <?php endforeach; ?>
                         <?php else : ?>
                             <tr>
-                                <td colspan="8" class="no-data">אין סוגי רישיונות מוגדרים</td>
+                                <td colspan="9" class="no-data">אין סוגי רישיונות מוגדרים</td>
                             </tr>
                         <?php endif; ?>
                     </tbody>

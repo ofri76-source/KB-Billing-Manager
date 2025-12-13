@@ -100,16 +100,17 @@ if (!empty($licenses)) {
         <table class="m365-table kbbm-report-table kbbm-details-table">
             <thead>
                 <tr class="customer-header-row">
-                    <th colspan="3">מספר לקוח</th>
-                    <th colspan="3">שם לקוח</th>
-                    <th colspan="2">Tenant Domain</th>
-                    <th colspan="2">סה"כ חיובים</th>
+                    <th>מספר לקוח</th>
+                    <th>שם לקוח</th>
+                    <th>Tenant Domain</th>
+                    <th>סה"כ חיובים</th>
+                    <th class="actions">פעולות</th>
                 </tr>
             </thead>
             <tbody>
             <?php if (empty($grouped_customers)): ?>
                 <tr>
-                    <td colspan="10" class="kbbm-no-data">אין נתונים להצגה. בצע סנכרון ראשוני.</td>
+                    <td colspan="5" class="kbbm-no-data">אין נתונים להצגה. בצע סנכרון ראשוני.</td>
                 </tr>
             <?php else: ?>
                 <?php foreach ($grouped_customers as $cid => $customer): ?>
@@ -123,69 +124,83 @@ if (!empty($licenses)) {
                                 $customer_notes = $license->notes;
                             }
                         }
-                    ?>
-                    <?php
+
                         $has_customer_number = !empty($customer['customer_number']);
                         $has_customer_name   = !empty($customer['customer_name']);
                         $has_tenant_domain   = !empty($customer['tenant_domain']);
                         $has_total_charges   = $total_charges > 0;
                     ?>
                     <tr class="customer-summary" data-customer="<?php echo esc_attr($cid); ?>">
-                        <td colspan="3" class="<?php echo $has_customer_number ? '' : 'kbbm-empty-summary'; ?>"><?php echo $has_customer_number ? esc_html($customer['customer_number']) : ''; ?></td>
-                        <td colspan="3" class="<?php echo $has_customer_name ? '' : 'kbbm-empty-summary'; ?>"><?php echo $has_customer_name ? esc_html($customer['customer_name']) : ''; ?></td>
-                        <td colspan="2" class="<?php echo $has_tenant_domain ? '' : 'kbbm-empty-summary'; ?>"><?php echo $has_tenant_domain ? esc_html($customer['tenant_domain']) : ''; ?></td>
-                        <td colspan="2" class="<?php echo $has_total_charges ? '' : 'kbbm-empty-summary'; ?>"><?php echo $has_total_charges ? number_format($total_charges, 2) : ''; ?></td>
+                        <td class="<?php echo $has_customer_number ? '' : 'kbbm-empty-summary'; ?>"><?php echo $has_customer_number ? esc_html($customer['customer_number']) : ''; ?></td>
+                        <td class="<?php echo $has_customer_name ? '' : 'kbbm-empty-summary'; ?>"><?php echo $has_customer_name ? esc_html($customer['customer_name']) : ''; ?></td>
+                        <td class="<?php echo $has_tenant_domain ? '' : 'kbbm-empty-summary'; ?>"><?php echo $has_tenant_domain ? esc_html($customer['tenant_domain']) : ''; ?></td>
+                        <td class="<?php echo $has_total_charges ? '' : 'kbbm-empty-summary'; ?>"><?php echo $has_total_charges ? number_format($total_charges, 2) : ''; ?></td>
+                        <td class="actions">
+                            <button type="button" class="kb-toggle-details" aria-label="הצג פירוט">▼</button>
+                        </td>
                     </tr>
-                    <tr class="plans-header-row detail-row" data-customer="<?php echo esc_attr($cid); ?>" style="display:none;">
-                        <th class="col-plan-display">תוכנית ללקוח</th>
-                        <th>חשבון חיוב</th>
-                        <th class="col-numeric">מחיר ללקוח</th>
-                        <th class="col-numeric">מחיר רכישה</th>
-                        <th class="col-numeric">נרכש</th>
-                        <th class="col-numeric">בשימוש</th>
-                        <th class="col-numeric">פנוי</th>
-                        <th class="col-numeric">ת. חיוב</th>
-                        <th class="col-numeric">חודשי / שנתי</th>
-                        <th class="col-numeric">פעולות</th>
-                    </tr>
-                    <?php foreach ($customer['licenses'] as $license): ?>
-                        <?php
-                            $total_purchased = ($license->quantity > 0) ? $license->quantity : $license->enabled_units;
-                            $available = $total_purchased - $license->consumed_units;
-                            $billing_display = $license->billing_cycle;
-                            if (!empty($license->billing_frequency)) {
-                                $billing_display .= ' / ' . $license->billing_frequency;
-                            }
-                            $plan_display = isset($license->display_plan_name) ? $license->display_plan_name : $license->plan_name;
-                        ?>
-                        <tr class="license-row detail-row" style="display:none;"
-                            data-id="<?php echo esc_attr($license->id); ?>"
-                            data-customer="<?php echo esc_attr($cid); ?>"
-                            data-billing-cycle="<?php echo esc_attr($license->billing_cycle); ?>"
-                            data-billing-frequency="<?php echo esc_attr($license->billing_frequency); ?>"
-                            data-quantity="<?php echo esc_attr($license->quantity); ?>"
-                            data-enabled="<?php echo esc_attr($license->enabled_units); ?>"
-                            data-notes="<?php echo esc_attr($license->notes); ?>"
-                        >
-                            <td class="plan-name col-plan-display" data-field="plan_name"><?php echo esc_html($plan_display); ?></td>
-                            <td data-field="billing_account"><?php echo esc_html($license->billing_account); ?></td>
-                            <td class="editable-price col-numeric" data-field="selling_price"><?php echo esc_html($license->selling_price); ?></td>
-                            <td class="editable-price col-numeric" data-field="cost_price"><?php echo esc_html($license->cost_price); ?></td>
-                            <td class="col-numeric" data-field="total_purchased"><?php echo esc_html($total_purchased); ?></td>
-                            <td class="col-numeric" data-field="consumed_units"><?php echo esc_html($license->consumed_units); ?></td>
-                            <td class="col-numeric" data-field="available_units"><?php echo esc_html($available); ?></td>
-                            <td class="col-numeric" data-field="renewal_date"><?php echo esc_html($license->renewal_date); ?></td>
-                            <td class="col-numeric" data-field="billing_cycle"><?php echo esc_html($billing_display); ?></td>
-                            <td class="actions col-numeric">
-                                <button type="button" class="m365-btn m365-btn-small m365-btn-secondary edit-license">ערוך</button>
-                                <button type="button" class="m365-btn m365-btn-small m365-btn-danger delete-license" data-id="<?php echo esc_attr($license->id); ?>">מחק</button>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                    <tr class="kb-notes-row detail-row" data-customer="<?php echo esc_attr($cid); ?>" style="display:none;">
-                        <td colspan="10" class="kb-notes-cell">
-                            <strong>הערות:</strong>
-                            <span class="kb-notes-value"><?php echo esc_html($customer_notes); ?></span>
+                    <tr class="customer-details" data-customer="<?php echo esc_attr($cid); ?>" style="display:none;">
+                        <td colspan="5">
+                            <div class="inner-wrap">
+                                <table class="kbbm-details-table-inner">
+                                    <thead>
+                                        <tr class="plans-header-row">
+                                            <th class="col-plan-display">תוכנית ללקוח</th>
+                                            <th class="col-billing-account">חשבון חיוב</th>
+                                            <th class="col-numeric">מחיר ללקוח</th>
+                                            <th class="col-numeric">מחיר רכישה</th>
+                                            <th class="col-numeric">נרכש</th>
+                                            <th class="col-numeric">בשימוש</th>
+                                            <th class="col-numeric">פנוי</th>
+                                            <th class="col-numeric">ת. חיוב</th>
+                                            <th class="col-numeric">חודשי / שנתי</th>
+                                            <th class="col-actions">פעולות</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($customer['licenses'] as $license): ?>
+                                            <?php
+                                                $total_purchased = ($license->quantity > 0) ? $license->quantity : $license->enabled_units;
+                                                $available = $total_purchased - $license->consumed_units;
+                                                $billing_display = $license->billing_cycle;
+                                                if (!empty($license->billing_frequency)) {
+                                                    $billing_display .= ' / ' . $license->billing_frequency;
+                                                }
+                                                $plan_display = isset($license->display_plan_name) ? $license->display_plan_name : $license->plan_name;
+                                            ?>
+                                            <tr class="license-row"
+                                                data-id="<?php echo esc_attr($license->id); ?>"
+                                                data-customer="<?php echo esc_attr($cid); ?>"
+                                                data-billing-cycle="<?php echo esc_attr($license->billing_cycle); ?>"
+                                                data-billing-frequency="<?php echo esc_attr($license->billing_frequency); ?>"
+                                                data-quantity="<?php echo esc_attr($license->quantity); ?>"
+                                                data-enabled="<?php echo esc_attr($license->enabled_units); ?>"
+                                                data-notes="<?php echo esc_attr($license->notes); ?>"
+                                            >
+                                                <td class="plan-name col-plan-display" data-field="plan_name"><?php echo esc_html($plan_display); ?></td>
+                                                <td class="col-billing-account" data-field="billing_account"><?php echo esc_html($license->billing_account); ?></td>
+                                                <td class="editable-price col-numeric" data-field="selling_price"><?php echo esc_html($license->selling_price); ?></td>
+                                                <td class="editable-price col-numeric" data-field="cost_price"><?php echo esc_html($license->cost_price); ?></td>
+                                                <td class="col-numeric" data-field="total_purchased"><?php echo esc_html($total_purchased); ?></td>
+                                                <td class="col-numeric" data-field="consumed_units"><?php echo esc_html($license->consumed_units); ?></td>
+                                                <td class="col-numeric" data-field="available_units"><?php echo esc_html($available); ?></td>
+                                                <td class="col-numeric" data-field="renewal_date"><?php echo esc_html($license->renewal_date); ?></td>
+                                                <td class="col-numeric" data-field="billing_cycle"><?php echo esc_html($billing_display); ?></td>
+                                                <td class="actions col-actions">
+                                                    <button type="button" class="m365-btn m365-btn-small m365-btn-secondary edit-license" aria-label="ערוך רישיון">✎</button>
+                                                    <button type="button" class="m365-btn m365-btn-small m365-btn-danger delete-license" data-id="<?php echo esc_attr($license->id); ?>" aria-label="מחק רישיון">🗑</button>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                        <tr class="kb-notes-row" data-customer="<?php echo esc_attr($cid); ?>">
+                                            <td colspan="10" class="kb-notes-cell">
+                                                <strong>הערות:</strong>
+                                                <span class="kb-notes-value"><?php echo esc_html($customer_notes); ?></span>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </td>
                     </tr>
                 <?php endforeach; ?>
