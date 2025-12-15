@@ -9,7 +9,7 @@
         $active         = isset($active) ? $active : '';
         $license_types  = isset($license_types) ? $license_types : array();
         $log_retention_days = isset($log_retention_days) ? intval($log_retention_days) : 120;
-        $use_test_server = get_option('kbbm_use_test_server', '0') === '1';
+        $use_test_server = (int) get_option('kbbm_use_test_server', 0);
     ?>
     <div class="m365-nav-links">
         <a href="<?php echo esc_url($main_url); ?>" class="<?php echo $active === 'main' ? 'active' : ''; ?>">ראשי</a>
@@ -273,6 +273,11 @@
         <div class="m365-section">
             <h3>הגדרות לוגים</h3>
             <form id="kbbm-log-settings-form">
+                <label style="display:block;margin-top:12px;">
+                    <input type="checkbox" id="kbbm-use-test-server" name="use_test_server" <?php checked($use_test_server, 1); ?> />
+                    שרת טסט
+                </label>
+                <small>כאשר האפשרות מסומנת, קישורי הניווט יעברו לשרת הבדיקות (kbtest.macomp.co.il).</small>
                 <div class="form-group">
                     <label>
                         <input type="checkbox" id="kbbm-use-test-server" name="use_test_server" <?php echo $use_test_server ? 'checked' : ''; ?>>

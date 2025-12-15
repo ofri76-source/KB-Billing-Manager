@@ -178,16 +178,33 @@ class M365_LM_Admin {
             'customer_name' => sanitize_text_field($_POST['customer_name']),
             'tenant_id' => sanitize_text_field($_POST['tenant_id']),
             'client_id' => sanitize_text_field($_POST['client_id']),
-            'client_secret' => sanitize_text_field($_POST['client_secret']),
+            'client_secret' => sanitize_textarea_field($_POST['client_secret']),
             'tenant_domain' => sanitize_text_field($_POST['tenant_domain'])
         );
 
-        $tenants = array();
-        if (!empty($_POST['tenants'])) {
-            $decoded = json_decode(stripslashes($_POST['tenants']), true);
-            if (is_array($decoded)) {
-                $tenants = $decoded;
+        $tenants_json = isset($_POST['tenants']) ? wp_unslash($_POST['tenants']) : '[]';
+        $tenants = json_decode($tenants_json, true);
+        if (!is_array($tenants)) {
+            $tenants = [];
+        }
+
+        $clean_tenants = [];
+        foreach ($tenants as $tenant) {
+            if (!is_array($tenant)) {
+                continue;
             }
+
+            $tenant_id = sanitize_text_field($tenant['tenant_id'] ?? '');
+            if ($tenant_id === '') {
+                continue;
+            }
+
+            $clean_tenants[] = array(
+                'tenant_id'     => $tenant_id,
+                'client_id'     => sanitize_text_field($tenant['client_id'] ?? ''),
+                'client_secret' => sanitize_textarea_field($tenant['client_secret'] ?? ''),
+                'tenant_domain' => sanitize_text_field($tenant['tenant_domain'] ?? ''),
+            );
         }
 
         if (!empty($_POST['id'])) {
@@ -197,7 +214,7 @@ class M365_LM_Admin {
         $result = M365_LM_Database::save_customer($data);
 
         if ($result) {
-            M365_LM_Database::replace_customer_tenants($result, $tenants);
+            M365_LM_Database::replace_customer_tenants($result, $clean_tenants);
         }
         
         if ($result) {
@@ -213,11 +230,11 @@ class M365_LM_Admin {
         
         $customer_id = intval($_POST['id']);
         $customer = M365_LM_Database::get_customer($customer_id);
-        $tenants  = M365_LM_Database::get_customer_tenants($customer_id);
 
         if ($customer) {
-            $customer->tenants = $tenants;
-            wp_send_json_success($customer);
+            $customer_array = (array) $customer;
+            $customer_array['tenants'] = M365_LM_Database::get_customer_tenants($customer_id);
+            wp_send_json_success($customer_array);
         } else {
             wp_send_json_error(array('message' => 'לקוח לא נמצא'));
         }
@@ -306,7 +323,7 @@ class M365_LM_Admin {
 
         $retention_days = isset($_POST['log_retention_days']) ? intval($_POST['log_retention_days']) : 120;
         $retention_days = $retention_days > 0 ? $retention_days : 120;
-        $use_test_server = isset($_POST['use_test_server']) && $_POST['use_test_server'] == 1 ? '1' : '0';
+        $use_test_server = isset($_POST['use_test_server']) ? (int) $_POST['use_test_server'] : 0;
 
         update_option('kbbm_log_retention_days', $retention_days);
         update_option('kbbm_use_test_server', $use_test_server);
