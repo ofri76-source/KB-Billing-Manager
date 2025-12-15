@@ -279,6 +279,13 @@
                 </label>
                 <small>כאשר האפשרות מסומנת, קישורי הניווט יעברו לשרת הבדיקות (kbtest.macomp.co.il).</small>
                 <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="kbbm-use-test-server" name="use_test_server" <?php echo $use_test_server ? 'checked' : ''; ?>>
+                        שרת טסט (kbtest.macomp.co.il)
+                    </label>
+                    <small>כאשר האפשרות מסומנת, קישורי הניווט יעברו לשרת הבדיקות.</small>
+                </div>
+                <div class="form-group">
                     <label>מספר ימים לשמירת לוגים לפני מחיקה:</label>
                     <input type="number" id="kbbm-log-retention-days" name="log_retention_days" min="1" value="<?php echo esc_attr($log_retention_days); ?>" placeholder="120">
                     <small>ברירת המחדל: 120 ימים.</small>
