@@ -81,6 +81,14 @@
                             <input type="text" id="customer-tenant-domain" name="tenant_domain" placeholder="example.onmicrosoft.com">
                         </div>
 
+                        <div id="additional-tenants"></div>
+
+                        <div class="form-group">
+                            <button type="button" id="add-tenant-row" class="m365-btn m365-btn-secondary">הוסף טננט נוסף</button>
+                        </div>
+
+                        <input type="hidden" id="customer-tenants-json" name="tenants" value="[]">
+
                         <div class="form-group">
                             <label>הדבקת תוצאות סקריפט/חיבור:</label>
                             <textarea id="customer-paste-source" placeholder="הדבק כאן את ה-Tenant ID, Client ID, Client Secret ועוד..." rows="4"></textarea>

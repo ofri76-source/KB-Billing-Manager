@@ -51,7 +51,16 @@ if (!empty($licenses)) {
                 'customer_number' => $license->customer_number ?? '',
                 'customer_name'   => $license->customer_name ?? '',
                 'tenant_domain'   => $license->tenant_domain ?? '',
+                'tenant_domains'  => array(),
                 'licenses'        => array(),
+            );
+        }
+
+        $domain_key = isset($license->tenant_domain) && $license->tenant_domain !== '' ? $license->tenant_domain : __('לא צוין', 'm365-license-manager');
+        if (!isset($grouped_customers[$cid]['tenant_domains'][$domain_key])) {
+            $grouped_customers[$cid]['tenant_domains'][$domain_key] = array(
+                'purchased' => 0,
+                'charges'   => 0,
             );
         }
 
@@ -118,6 +127,12 @@ if (!empty($licenses)) {
                         foreach ($customer['licenses'] as $license) {
                             $total_purchased = ($license->quantity > 0) ? $license->quantity : $license->enabled_units;
                             $total_charges  += $total_purchased * $license->selling_price;
+                            $domain_key = isset($license->tenant_domain) && $license->tenant_domain !== '' ? $license->tenant_domain : __('לא צוין', 'm365-license-manager');
+                            if (!isset($customer['tenant_domains'][$domain_key])) {
+                                $customer['tenant_domains'][$domain_key] = array('purchased' => 0, 'charges' => 0);
+                            }
+                            $customer['tenant_domains'][$domain_key]['purchased'] += $total_purchased;
+                            $customer['tenant_domains'][$domain_key]['charges']   += $total_purchased * $license->selling_price;
                             if (empty($customer_notes) && !empty($license->notes)) {
                                 $customer_notes = $license->notes;
                             }
@@ -126,14 +141,23 @@ if (!empty($licenses)) {
                     <?php
                         $has_customer_number = !empty($customer['customer_number']);
                         $has_customer_name   = !empty($customer['customer_name']);
-                        $has_tenant_domain   = !empty($customer['tenant_domain']);
+                        $has_tenant_domain   = !empty($customer['tenant_domains']);
                         $has_billing_period  = !empty($billing_period_label);
                         $has_total_charges   = $total_charges > 0;
                     ?>
                     <tr class="customer-summary" data-customer="<?php echo esc_attr($cid); ?>">
                         <td colspan="2" class="<?php echo $has_customer_number ? '' : 'kbbm-empty-summary'; ?>"><?php echo $has_customer_number ? esc_html($customer['customer_number']) : ''; ?></td>
                         <td colspan="2" class="<?php echo $has_customer_name ? '' : 'kbbm-empty-summary'; ?>"><?php echo $has_customer_name ? esc_html($customer['customer_name']) : ''; ?></td>
-                        <td colspan="2" class="<?php echo $has_tenant_domain ? '' : 'kbbm-empty-summary'; ?>"><?php echo $has_tenant_domain ? esc_html($customer['tenant_domain']) : ''; ?></td>
+                        <td colspan="2" class="<?php echo $has_tenant_domain ? '' : 'kbbm-empty-summary'; ?>">
+                            <?php if ($has_tenant_domain): ?>
+                                <?php foreach ($customer['tenant_domains'] as $domain => $tenant_totals): ?>
+                                    <div class="kbbm-tenant-summary">
+                                        <strong><?php echo esc_html($domain); ?></strong>
+                                        <span>(<?php echo esc_html($tenant_totals['purchased']); ?> רשיונות)</span>
+                                    </div>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </td>
                         <td colspan="2" class="<?php echo $has_billing_period ? '' : 'kbbm-empty-summary'; ?>"><?php echo $has_billing_period ? esc_html($billing_period_label) : ''; ?></td>
                         <td colspan="2" class="<?php echo $has_total_charges ? '' : 'kbbm-empty-summary'; ?>"><?php echo $has_total_charges ? number_format($total_charges, 2) : ''; ?></td>
                     </tr>
