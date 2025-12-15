@@ -54,6 +54,7 @@ jQuery(document).ready(function($) {
         `);
 
         additionalTenantsContainer.append(row);
+        serializeTenants();
     }
     let inlineFormRow = null;
 
@@ -512,6 +513,12 @@ jQuery(document).ready(function($) {
         }
     });
 
+    const tenantFieldSelectors = '#customer-tenant-id, #customer-client-id, #customer-client-secret, #customer-tenant-domain';
+
+    $(document).on('input change', `${tenantFieldSelectors}, .additional-tenant-row input`, function() {
+        serializeTenants();
+    });
+
     // הוספת לקוח
     $('#add-customer').on('click', function() {
         $('#customer-modal-title').text('הוסף לקוח חדש');
@@ -552,6 +559,7 @@ jQuery(document).ready(function($) {
                 $('#customer-tenant-domain').val(customer.tenant_domain || '');
                 $('#customer-paste-source').val('');
                 additionalTenantsContainer.empty();
+                $('#customer-tenants-json').val('[]');
                 if (customer.tenants && customer.tenants.length > 0) {
                     customer.tenants.forEach(function(tenant, index) {
                         if (index === 0) {
@@ -569,6 +577,7 @@ jQuery(document).ready(function($) {
                         }
                     });
                 }
+                serializeTenants();
 
                 const row = $(e.target).closest('tr');
                 if (row.length) {
@@ -612,6 +621,7 @@ jQuery(document).ready(function($) {
 
     $(document).on('click', '.remove-tenant-row', function() {
         $(this).closest('.additional-tenant-row').remove();
+        serializeTenants();
     });
 
     // מחיקת לקוח
