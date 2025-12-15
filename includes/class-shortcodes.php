@@ -18,8 +18,6 @@ class M365_LM_Shortcodes {
         add_action('wp_ajax_m365_hard_delete', array($this, 'ajax_hard_delete'));
         add_action('wp_ajax_m365_save_license', array($this, 'ajax_save_license'));
         add_action('wp_ajax_m365_save_license_type', array($this, 'ajax_save_license_type'));
-        add_action('wp_ajax_kbbm_partner_import_customers', array($this, 'ajax_partner_import_customers'));
-        add_action('wp_ajax_kbbm_partner_bulk_sync_licenses', array($this, 'ajax_partner_bulk_sync_licenses'));
         add_action('wp_ajax_kbbm_test_connection', array($this, 'ajax_test_connection'));
     }
     
@@ -39,7 +37,7 @@ class M365_LM_Shortcodes {
         $active = 'main';
         $licenses = M365_LM_Database::get_licenses();
         $customers = M365_LM_Database::get_customers();
-        $license_types = M365_LM_Database::get_license_types_combined();
+        $license_types = M365_LM_Database::get_combined_license_types();
         include M365_LM_PLUGIN_DIR . 'templates/main-page.php';
         return ob_get_clean();
     }
@@ -61,10 +59,7 @@ class M365_LM_Shortcodes {
         ob_start();
         $active = 'settings';
         $customers = M365_LM_Database::get_customers();
-        $license_types = M365_LM_Database::get_license_types_combined();
-        $partner_settings = M365_LM_Database::get_partner_settings();
-        $partner_import_status = M365_LM_Database::get_partner_import_status();
-        $partner_bulk_status   = M365_LM_Database::get_partner_bulk_sync_status();
+        $license_types = M365_LM_Database::get_combined_license_types();
         include M365_LM_PLUGIN_DIR . 'templates/settings.php';
         return ob_get_clean();
     }
@@ -144,109 +139,6 @@ class M365_LM_Shortcodes {
         ));
 
         wp_send_json_success(array('message' => 'סוג הרישיון נשמר'));
-    }
-
-    public function ajax_partner_import_customers() {
-        check_ajax_referer('m365_nonce', 'nonce');
-
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(array('message' => 'אין הרשאה')); 
-        }
-
-        $customers = M365_LM_Partner_Connector::list_partner_customers();
-        if (is_wp_error($customers)) {
-            wp_send_json_error(array('message' => $customers->get_error_message()));
-        }
-
-        $inserted = 0;
-        $updated  = 0;
-
-        foreach ($customers as $customer) {
-            $result = M365_LM_Database::upsert_customer_from_partner(
-                $customer['partner_customer_id'],
-                array(
-                    'tenant_domain'   => $customer['tenant_domain'] ?? '',
-                    'tenant_id'       => $customer['tenant_id'] ?? '',
-                    'customer_name'   => $customer['name'] ?? '',
-                    'customer_number' => isset($customer['customer_number']) ? $customer['customer_number'] : '',
-                )
-            );
-
-            if ($result['action'] === 'inserted') {
-                $inserted++;
-            } else {
-                $updated++;
-            }
-        }
-
-        $summary = array(
-            'total'    => count($customers),
-            'inserted' => $inserted,
-            'updated'  => $updated,
-            'time'     => current_time('mysql'),
-        );
-
-        M365_LM_Database::set_partner_import_status($summary);
-        M365_LM_Database::log_event('info', 'partner_import_customers', 'Partner customers import completed', null, $summary);
-
-        wp_send_json_success(array('message' => 'ייבוא לקוחות הסתיים', 'summary' => $summary));
-    }
-
-    public function ajax_partner_bulk_sync_licenses() {
-        check_ajax_referer('m365_nonce', 'nonce');
-
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(array('message' => 'אין הרשאה'));
-        }
-
-        $customers = M365_LM_Database::get_customers_by_source('partner');
-        $summary   = array(
-            'total'   => count($customers),
-            'synced'  => 0,
-            'skipped' => 0,
-            'errors'  => array(),
-            'time'    => current_time('mysql'),
-        );
-
-        foreach ($customers as $customer) {
-            if (empty($customer->tenant_id) || empty($customer->client_id) || empty($customer->client_secret)) {
-                $summary['skipped']++;
-                M365_LM_Database::log_event(
-                    'warning',
-                    'skipped_missing_credentials',
-                    'Skipping partner customer due to missing credentials',
-                    $customer->id,
-                    array('customer_id' => $customer->id, 'tenant_domain' => $customer->tenant_domain)
-                );
-                continue;
-            }
-
-            $result = $this->sync_customer_licenses(intval($customer->id));
-
-            if (!empty($result['success'])) {
-                $summary['synced']++;
-            } else {
-                $summary['errors'][] = array(
-                    'customer_id' => $customer->id,
-                    'message'     => isset($result['message']) ? $result['message'] : 'unknown_error',
-                );
-
-                M365_LM_Database::log_event(
-                    'error',
-                    'partner_bulk_sync_licenses',
-                    'Bulk sync failed for partner customer',
-                    $customer->id,
-                    $result
-                );
-            }
-
-            usleep(200000); // 0.2s throttle to avoid timeouts
-        }
-
-        M365_LM_Database::set_partner_bulk_sync_status($summary);
-        M365_LM_Database::log_event('info', 'partner_bulk_sync_licenses', 'Bulk sync completed for partner customers', null, $summary);
-
-        wp_send_json_success(array('message' => 'סנכרון רישיונות לבעלי Partner הסתיים', 'summary' => $summary));
     }
 
     private function sync_customer_licenses($customer_id) {
