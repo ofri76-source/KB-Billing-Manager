@@ -892,11 +892,13 @@ jQuery(document).ready(function($) {
         e.preventDefault();
 
         const days = parseInt($('#kbbm-log-retention-days').val(), 10) || 120;
+        const useTestServer = $('#kbbm-use-test-server').is(':checked') ? 1 : 0;
 
         $.post(m365Ajax.ajaxurl, {
             action: 'kbbm_save_settings',
             nonce: m365Ajax.nonce,
-            log_retention_days: days
+            log_retention_days: days,
+            use_test_server: useTestServer
         }, function(response) {
             if (response && response.success) {
                 showMessage('success', (response.data && response.data.message) ? response.data.message : 'ההגדרות נשמרו');

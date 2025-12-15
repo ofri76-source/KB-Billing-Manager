@@ -292,13 +292,19 @@ class M365_LM_Admin {
 
         $retention_days = isset($_POST['log_retention_days']) ? intval($_POST['log_retention_days']) : 120;
         $retention_days = $retention_days > 0 ? $retention_days : 120;
+        $use_test_server = isset($_POST['use_test_server']) && $_POST['use_test_server'] == 1 ? '1' : '0';
 
         update_option('kbbm_log_retention_days', $retention_days);
+        update_option('kbbm_use_test_server', $use_test_server);
 
         // בצע ניקוי מיידי בהתאם לערך המעודכן
         M365_LM_Database::prune_logs($retention_days);
 
-        wp_send_json_success(array('message' => 'ההגדרות נשמרו בהצלחה', 'log_retention_days' => $retention_days));
+        wp_send_json_success(array(
+            'message' => 'ההגדרות נשמרו בהצלחה',
+            'log_retention_days' => $retention_days,
+            'use_test_server' => $use_test_server,
+        ));
     }
 }
 
