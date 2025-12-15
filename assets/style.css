@@ -45,70 +45,9 @@
     padding: 10px 20px;
 }
 
-/* Remove container padding on the main page to stretch edge-to-edge */
-body.page-id-14296 .container {
-    max-width: 100% !important;
-    padding-right: 0 !important;
-    padding-left: 0 !important;
-}
-
 .m365-table-wrapper,
 .m365-table {
     width: 100%;
-}
-
-.kbbm-details-table th.col-plan-display,
-.kbbm-details-table td.col-plan-display {
-    width: 40ch;
-    max-width: 40ch;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.customer-summary {
-    cursor: pointer;
-}
-
-.customer-summary .kb-toggle-details {
-    cursor: pointer;
-}
-
-.customer-details td {
-    padding: 0;
-}
-
-.customer-details .inner-wrap {
-    padding: 12px;
-}
-
-.kbbm-details-table th.col-numeric,
-.kbbm-details-table td.col-numeric {
-    width: 5ch;
-    max-width: 5ch;
-    text-align: center;
-}
-
-.kbbm-details-table th.col-billing-account,
-.kbbm-details-table td.col-billing-account {
-    width: 14ch;
-    max-width: 14ch;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.kbbm-details-table th.col-actions,
-.kbbm-details-table td.col-actions {
-    width: 5ch;
-    max-width: 5ch;
-    text-align: center;
-}
-
-.kbbm-details-table .actions button {
-    padding: 4px 6px;
-    min-width: auto;
-    font-size: 12px;
 }
 
 .kbbm-license-types-table th,
