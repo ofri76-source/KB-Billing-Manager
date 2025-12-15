@@ -3,11 +3,12 @@ if (!defined('ABSPATH')) exit;
 
 $filters = isset($filters) && is_array($filters) ? $filters : array();
 
-$main_url     = 'https://kb.macomp.co.il/?page_id=14296';
-$recycle_url  = 'https://kb.macomp.co.il/?page_id=14291';
-$settings_url = 'https://kb.macomp.co.il/?page_id=14292';
-$logs_url     = 'https://kb.macomp.co.il/?page_id=14285';
-$alerts_url   = 'https://kb.macomp.co.il/?page_id=14290';
+$portal_urls  = function_exists('kbbm_get_portal_urls') ? kbbm_get_portal_urls() : array();
+$main_url     = $portal_urls['main'] ?? 'https://kb.macomp.co.il/?page_id=14296';
+$recycle_url  = $portal_urls['recycle'] ?? 'https://kb.macomp.co.il/?page_id=14291';
+$settings_url = $portal_urls['settings'] ?? 'https://kb.macomp.co.il/?page_id=14292';
+$logs_url     = $portal_urls['logs'] ?? 'https://kb.macomp.co.il/?page_id=14285';
+$alerts_url   = $portal_urls['alerts'] ?? 'https://kb.macomp.co.il/?page_id=14290';
 $active       = isset($active) ? $active : 'alerts';
 
 $customer_query = isset($filters['customer_query']) ? $filters['customer_query'] : '';
@@ -31,7 +32,7 @@ $date_to        = isset($filters['date_to']) ? $filters['date_to'] : '';
             <p>צפה בשינויים שבוצעו ברישיונות לפי פילטרים של לקוח, טווח תאריכים וסוג רישיון.</p>
         </div>
         <div class="m365-actions">
-            <a class="m365-btn m365-btn-primary" href="https://kb.macomp.co.il/?page_id=14290" target="_blank" rel="noreferrer">מעבר למסך ההתראות</a>
+            <a class="m365-btn m365-btn-primary" href="<?php echo esc_url($alerts_url); ?>" target="_blank" rel="noreferrer">מעבר למסך ההתראות</a>
         </div>
     </div>
 

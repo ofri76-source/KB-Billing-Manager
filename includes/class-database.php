@@ -45,6 +45,23 @@ class M365_LM_Database {
             UNIQUE KEY customer_number (customer_number)
         ) {$charset_collate};";
 
+        // טבלת טננטים ללקוחות (ריבוי טננטים לכל לקוח)
+        $kb_customer_tenants = $wpdb->prefix . 'kb_billing_customer_tenants';
+        $sql_customer_tenants = "CREATE TABLE IF NOT EXISTS {$kb_customer_tenants} (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            customer_id bigint(20) NOT NULL,
+            tenant_id varchar(255) NOT NULL,
+            tenant_domain varchar(255) DEFAULT NULL,
+            client_id varchar(255) DEFAULT NULL,
+            client_secret text DEFAULT NULL,
+            is_primary tinyint(1) DEFAULT 0,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY customer_id (customer_id),
+            KEY tenant_domain (tenant_domain)
+        ) {$charset_collate};";
+
         // טבלת לוגים
         $table_logs = $wpdb->prefix . 'kb_billing_logs';
         $sql_logs = "CREATE TABLE IF NOT EXISTS $table_logs (
@@ -73,6 +90,7 @@ class M365_LM_Database {
             enabled_units int(11) NOT NULL DEFAULT 0,
             consumed_units int(11) NOT NULL DEFAULT 0,
             status_text varchar(100) DEFAULT NULL,
+            tenant_domain varchar(255) DEFAULT NULL,
             cost_price decimal(10,2) NOT NULL DEFAULT 0,
             selling_price decimal(10,2) NOT NULL DEFAULT 0,
             quantity int(11) NOT NULL DEFAULT 0,
@@ -103,6 +121,7 @@ class M365_LM_Database {
             enabled_units INT(11) DEFAULT 0,
             consumed_units INT(11) DEFAULT 0,
             status_text varchar(100) DEFAULT NULL,
+            tenant_domain varchar(255) DEFAULT NULL,
             billing_cycle ENUM('monthly','yearly') DEFAULT 'monthly',
             billing_frequency INT(11) DEFAULT 1,
             renewal_date DATE DEFAULT NULL,
@@ -111,7 +130,8 @@ class M365_LM_Database {
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY  (id),
-            KEY customer_program (customer_id, program_name)
+            KEY customer_program (customer_id, program_name),
+            KEY tenant_domain (tenant_domain)
         ) {$charset_collate};";
 
         // טבלת סוגי רישיונות (אופציונלית אך שימושית)
@@ -134,6 +154,7 @@ class M365_LM_Database {
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         dbDelta($sql_customers);
         dbDelta($sql_kb_customers);
+        dbDelta($sql_customer_tenants);
         dbDelta($sql_licenses);
         dbDelta($sql_kb_licenses);
         dbDelta($sql_license_types);
@@ -143,6 +164,8 @@ class M365_LM_Database {
         self::maybe_add_column($kb_licenses_table, 'billing_account', "billing_account VARCHAR(255) DEFAULT NULL AFTER sku");
         self::maybe_add_column($kb_licenses_table, 'renewal_date', "renewal_date DATE DEFAULT NULL AFTER billing_frequency");
         self::maybe_add_column($kb_licenses_table, 'notes', "notes TEXT NULL AFTER renewal_date");
+        self::maybe_add_column($table_licenses, 'tenant_domain', "tenant_domain VARCHAR(255) NULL AFTER status_text");
+        self::maybe_add_column($kb_licenses_table, 'tenant_domain', "tenant_domain VARCHAR(255) NULL AFTER status_text");
         self::maybe_add_column($types_table, 'display_name', "display_name VARCHAR(255) DEFAULT '' AFTER name");
         self::maybe_add_column($types_table, 'show_in_main', "show_in_main TINYINT(1) DEFAULT 1 AFTER default_billing_frequency");
     }
@@ -171,6 +194,41 @@ class M365_LM_Database {
             $wpdb->insert($table, $data);
             return $wpdb->insert_id;
         }
+    }
+
+    public static function replace_customer_tenants($customer_id, $tenants) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'kb_billing_customer_tenants';
+
+        $wpdb->delete($table, array('customer_id' => $customer_id));
+
+        if (empty($tenants) || !is_array($tenants)) {
+            return;
+        }
+
+        foreach ($tenants as $index => $tenant) {
+            if (empty($tenant['tenant_id'])) {
+                continue;
+            }
+
+            $wpdb->insert($table, array(
+                'customer_id'   => $customer_id,
+                'tenant_id'     => sanitize_text_field($tenant['tenant_id']),
+                'tenant_domain' => isset($tenant['tenant_domain']) ? sanitize_text_field($tenant['tenant_domain']) : null,
+                'client_id'     => isset($tenant['client_id']) ? sanitize_text_field($tenant['client_id']) : null,
+                'client_secret' => isset($tenant['client_secret']) ? sanitize_textarea_field($tenant['client_secret']) : null,
+                'is_primary'    => $index === 0 ? 1 : 0,
+            ));
+        }
+    }
+
+    public static function get_customer_tenants($customer_id) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'kb_billing_customer_tenants';
+        return $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$table} WHERE customer_id = %d ORDER BY is_primary DESC, id ASC",
+            $customer_id
+        ));
     }
     
     // פונקציות CRUD לרישיונות
@@ -226,17 +284,19 @@ class M365_LM_Database {
     /**
      * עדכון או יצירה של רישיון לפי SKU ולקוח
      */
-    public static function upsert_license_by_sku($customer_id, $sku_id, $data) {
+    public static function upsert_license_by_sku($customer_id, $sku_id, $data, $tenant_domain = '') {
         global $wpdb;
 
         $table = $wpdb->prefix . 'm365_licenses';
-        $existing_id = $wpdb->get_var(
-            $wpdb->prepare(
-                "SELECT id FROM {$table} WHERE customer_id = %d AND sku_id = %s",
-                intval($customer_id),
-                sanitize_text_field($sku_id)
-            )
-        );
+        $query = "SELECT id FROM {$table} WHERE customer_id = %d AND sku_id = %s";
+
+        $params = array(intval($customer_id), sanitize_text_field($sku_id));
+        if (!empty($tenant_domain)) {
+            $query .= " AND tenant_domain = %s";
+            $params[] = sanitize_text_field($tenant_domain);
+        }
+
+        $existing_id = $wpdb->get_var($wpdb->prepare($query, $params));
 
         if ($existing_id) {
             $data['id'] = intval($existing_id);
