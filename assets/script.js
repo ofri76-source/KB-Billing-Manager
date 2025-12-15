@@ -52,26 +52,20 @@ jQuery(document).ready(function($) {
         customerFormWrapper.hide();
     }
 
-    function updatePlansHeaderVisibility() {
-        // legacy helper retained for compatibility; headers now live inside detail rows
-    }
+    function updatePlansHeaderVisibility(customerId, isOpen) {
+        const selector = customerId ? `.plans-header-row[data-customer='${customerId}']` : '.plans-header-row';
+        const targetRows = $(selector);
 
-    $(document).on('click', '.kb-toggle-details, tr.customer-summary', function(e) {
-        e.preventDefault();
-        const summary = $(this).closest('tr.customer-summary');
-        const details = summary.next('tr.customer-details');
-
-        if (!summary.length || !details.length) {
+        if (typeof isOpen !== 'undefined') {
+            targetRows.toggleClass('visible', isOpen);
+            targetRows.css('display', isOpen ? 'table-row' : 'none');
             return;
         }
 
-        details.toggle();
-
-        const toggleBtn = summary.find('.kb-toggle-details');
-        if (toggleBtn.length) {
-            toggleBtn.text(details.is(':visible') ? '▲' : '▼');
-        }
-    });
+        const hasVisible = $('.license-row:visible').length > 0;
+        targetRows.toggleClass('visible', hasVisible);
+        targetRows.css('display', hasVisible ? 'table-row' : 'none');
+    }
 
     // סנכרון רישיונות
     $('#sync-licenses').on('click', function() {
@@ -789,7 +783,7 @@ jQuery(document).ready(function($) {
     // פתיחה/סגירה של פירוט לקוחות בדף הראשי
     $(document).on('click', '.customer-summary', function() {
         const customerId = $(this).data('customer');
-        const relatedRows = $(`.plans-header-row[data-customer='${customerId}'], .license-row[data-customer='${customerId}'], .kb-notes-row[data-customer='${customerId}']`);
+        const relatedRows = $(`.license-row[data-customer='${customerId}'], .kb-notes-row[data-customer='${customerId}']`);
 
         if (!relatedRows.length) {
             return;
@@ -797,72 +791,9 @@ jQuery(document).ready(function($) {
 
         const isOpen = $(this).hasClass('open');
         $(this).toggleClass('open');
-
-        if (isOpen) {
-            relatedRows.hide();
-            updatePlansHeaderVisibility(customerId, false);
-        } else {
-            relatedRows.each(function() {
-                $(this).css('display', 'table-row');
-            });
-            updatePlansHeaderVisibility(customerId, true);
-        }
+        relatedRows.toggle(!isOpen);
+        updatePlansHeaderVisibility();
     });
-
-    // פילטרים למסך התראות
-    function applyAlertsFilters() {
-        const customer = ($('#alerts-filter-customer').val() || '').toLowerCase();
-        const license  = ($('#alerts-filter-license').val() || '').toLowerCase();
-        const fromVal  = $('#alerts-filter-from').val();
-        const toVal    = $('#alerts-filter-to').val();
-
-        const fromDate = fromVal ? new Date(fromVal) : null;
-        const toDate   = toVal ? new Date(toVal + 'T23:59:59') : null;
-
-        $('#kbbm-alerts-table tbody tr').each(function() {
-            const row = $(this);
-            let show = true;
-
-            if (customer) {
-                const haystack = ((row.data('customer-name') || '') + ' ' + (row.data('customer-number') || '')).toLowerCase();
-                if (!haystack.includes(customer)) {
-                    show = false;
-                }
-            }
-
-            if (show && license) {
-                const haystack = ((row.data('license-name') || '') + ' ' + (row.data('license-sku') || '')).toLowerCase();
-                if (!haystack.includes(license)) {
-                    show = false;
-                }
-            }
-
-            if (show && (fromDate || toDate)) {
-                const rowTime = new Date(row.data('event-time'));
-                if (fromDate && rowTime < fromDate) {
-                    show = false;
-                }
-                if (toDate && rowTime > toDate) {
-                    show = false;
-                }
-            }
-
-            row.toggle(show);
-        });
-    }
-
-    if ($('#kbbm-alerts-table').length) {
-        $('#alerts-filter-customer, #alerts-filter-license, #alerts-filter-from, #alerts-filter-to').on('input change', function() {
-            applyAlertsFilters();
-        });
-
-        $('#alerts-reset-filters').on('click', function() {
-            $('#alerts-filter-customer, #alerts-filter-license, #alerts-filter-from, #alerts-filter-to').val('');
-            applyAlertsFilters();
-        });
-
-        applyAlertsFilters();
-    }
 
     // עריכת סוגי רישיון (טאב הגדרות)
     $(document).on('click', '.license-type-edit', function() {
@@ -899,8 +830,7 @@ jQuery(document).ready(function($) {
         $.post(m365Ajax.ajaxurl, formData, function(response) {
             if (response && response.success) {
                 showMessage('success', response.data && response.data.message ? response.data.message : 'סוג הרישיון נשמר');
-                localStorage.setItem(tabStorageKey, 'license-types');
-                setTimeout(function() { location.reload(); }, 800);
+                setTimeout(function() { location.reload(); }, 1000);
             } else {
                 const msg = response && response.data && response.data.message ? response.data.message : 'שגיאה בשמירת סוג הרישיון';
                 showMessage('error', msg);
@@ -976,102 +906,6 @@ jQuery(document).ready(function($) {
             }
         }).fail(function() {
             showMessage('error', 'שגיאה בשמירת ההגדרות');
-        });
-    });
-
-    $('#kbbm-partner-settings-form').on('submit', function(e) {
-        e.preventDefault();
-
-        $.post(m365Ajax.ajaxurl, {
-            action: 'kbbm_save_partner_settings',
-            nonce: m365Ajax.nonce,
-            partner_enabled: $('#kbbm-partner-enabled').is(':checked') ? 1 : 0,
-            partner_tenant_id: $('#kbbm-partner-tenant').val(),
-            partner_client_id: $('#kbbm-partner-client').val(),
-            partner_client_secret: $('#kbbm-partner-secret').val(),
-        }, function(response) {
-            if (response && response.success) {
-                showMessage('success', (response.data && response.data.message) ? response.data.message : 'ההגדרות נשמרו');
-            } else {
-                const msg = response && response.data && response.data.message ? response.data.message : 'שמירת הגדרות נכשלה';
-                showMessage('error', msg);
-            }
-        }).fail(function() {
-            showMessage('error', 'שגיאה בשמירת הגדרות Partner');
-        });
-    });
-
-    function updatePartnerImportStatus(summary) {
-        if (!summary) return;
-        if (summary.inserted !== undefined) {
-            $('#kbbm-partner-imported-count').text(summary.inserted);
-        }
-        if (summary.updated !== undefined) {
-            $('#kbbm-partner-updated-count').text(summary.updated);
-        }
-        if (summary.time) {
-            $('#kbbm-partner-imported-time').text(summary.time);
-        }
-    }
-
-    function updatePartnerBulkStatus(summary) {
-        if (!summary) return;
-        if (summary.time) {
-            $('#kbbm-partner-bulk-time').text(summary.time);
-        }
-        if (summary.synced !== undefined) {
-            $('#kbbm-partner-bulk-count').text(summary.synced);
-        }
-        if (summary.total !== undefined) {
-            $('#kbbm-partner-bulk-total').text(summary.total);
-        }
-    }
-
-    $('#kbbm-partner-import').on('click', function(e) {
-        e.preventDefault();
-        const btn = $(this);
-        btn.prop('disabled', true);
-
-        $.post(m365Ajax.ajaxurl, {
-            action: 'kbbm_partner_import_customers',
-            nonce: m365Ajax.nonce
-        }, function(response) {
-            if (response && response.success) {
-                const summary = response.data && response.data.summary ? response.data.summary : null;
-                updatePartnerImportStatus(summary);
-                showMessage('success', response.data && response.data.message ? response.data.message : 'ייבוא הושלם');
-            } else {
-                const msg = response && response.data && response.data.message ? response.data.message : 'ייבוא נכשל';
-                showMessage('error', msg);
-            }
-        }).fail(function() {
-            showMessage('error', 'שגיאה בייבוא מה-Partner');
-        }).always(function() {
-            btn.prop('disabled', false);
-        });
-    });
-
-    $('#kbbm-partner-bulk-sync').on('click', function(e) {
-        e.preventDefault();
-        const btn = $(this);
-        btn.prop('disabled', true);
-
-        $.post(m365Ajax.ajaxurl, {
-            action: 'kbbm_partner_bulk_sync_licenses',
-            nonce: m365Ajax.nonce
-        }, function(response) {
-            if (response && response.success) {
-                const summary = response.data && response.data.summary ? response.data.summary : null;
-                updatePartnerBulkStatus(summary);
-                showMessage('success', response.data && response.data.message ? response.data.message : 'Bulk Sync הושלם');
-            } else {
-                const msg = response && response.data && response.data.message ? response.data.message : 'Bulk Sync נכשל';
-                showMessage('error', msg);
-            }
-        }).fail(function() {
-            showMessage('error', 'שגיאה בסנכרון רישיונות Partner');
-        }).always(function() {
-            btn.prop('disabled', false);
         });
     });
 
