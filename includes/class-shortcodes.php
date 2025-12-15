@@ -348,11 +348,12 @@ class M365_LM_Shortcodes {
         ?>
         <div class="m365-lm-container">
             <?php
-                $main_url     = 'https://kb.macomp.co.il/?page_id=14296';
-                $recycle_url  = 'https://kb.macomp.co.il/?page_id=14291';
-                $settings_url = 'https://kb.macomp.co.il/?page_id=14292';
-                $logs_url     = 'https://kb.macomp.co.il/?page_id=14285';
-                $alerts_url   = 'https://kb.macomp.co.il/?page_id=14290';
+                $portal_urls  = function_exists('kbbm_get_portal_urls') ? kbbm_get_portal_urls() : array();
+                $main_url     = $portal_urls['main'] ?? 'https://kb.macomp.co.il/?page_id=14296';
+                $recycle_url  = $portal_urls['recycle'] ?? 'https://kb.macomp.co.il/?page_id=14291';
+                $settings_url = $portal_urls['settings'] ?? 'https://kb.macomp.co.il/?page_id=14292';
+                $logs_url     = $portal_urls['logs'] ?? 'https://kb.macomp.co.il/?page_id=14285';
+                $alerts_url   = $portal_urls['alerts'] ?? 'https://kb.macomp.co.il/?page_id=14290';
                 $active       = 'logs';
             ?>
             <div class="m365-nav-links">
