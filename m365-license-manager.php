@@ -24,6 +24,24 @@ require_once M365_LM_PLUGIN_DIR . 'includes/class-admin.php';
 add_action('admin_post_kbbm_download_script', 'kbbm_download_script_handler');
 add_action('admin_post_nopriv_kbbm_download_script', 'kbbm_download_script_handler');
 
+// קישורי ניווט בין סביבות שרת אמת ושרת טסט
+if (!function_exists('kbbm_get_portal_urls')) {
+    function kbbm_get_portal_urls() {
+        $use_test_server = get_option('kbbm_use_test_server', '0');
+        $is_test = $use_test_server === '1' || $use_test_server === 1 || $use_test_server === true;
+
+        $base = $is_test ? 'https://kbtest.macomp.co.il/?page_id=' : 'https://kb.macomp.co.il/?page_id=';
+
+        return array(
+            'main'     => $base . '14296',
+            'recycle'  => $base . '14291',
+            'settings' => $base . '14292',
+            'logs'     => $base . '14285',
+            'alerts'   => $base . '14290',
+        );
+    }
+}
+
 // הפעלה והסרה
 register_activation_hook(__FILE__, 'kb_billing_manager_activate');
 register_deactivation_hook(__FILE__, 'm365_lm_deactivate');

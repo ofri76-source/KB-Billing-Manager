@@ -181,12 +181,24 @@ class M365_LM_Admin {
             'client_secret' => sanitize_text_field($_POST['client_secret']),
             'tenant_domain' => sanitize_text_field($_POST['tenant_domain'])
         );
-        
+
+        $tenants = array();
+        if (!empty($_POST['tenants'])) {
+            $decoded = json_decode(stripslashes($_POST['tenants']), true);
+            if (is_array($decoded)) {
+                $tenants = $decoded;
+            }
+        }
+
         if (!empty($_POST['id'])) {
             $data['id'] = intval($_POST['id']);
         }
-        
+
         $result = M365_LM_Database::save_customer($data);
+
+        if ($result) {
+            M365_LM_Database::replace_customer_tenants($result, $tenants);
+        }
         
         if ($result) {
             wp_send_json_success(array('message' => 'לקוח נשמר בהצלחה'));
@@ -201,8 +213,10 @@ class M365_LM_Admin {
         
         $customer_id = intval($_POST['id']);
         $customer = M365_LM_Database::get_customer($customer_id);
-        
+        $tenants  = M365_LM_Database::get_customer_tenants($customer_id);
+
         if ($customer) {
+            $customer->tenants = $tenants;
             wp_send_json_success($customer);
         } else {
             wp_send_json_error(array('message' => 'לקוח לא נמצא'));
@@ -292,13 +306,19 @@ class M365_LM_Admin {
 
         $retention_days = isset($_POST['log_retention_days']) ? intval($_POST['log_retention_days']) : 120;
         $retention_days = $retention_days > 0 ? $retention_days : 120;
+        $use_test_server = isset($_POST['use_test_server']) && $_POST['use_test_server'] == 1 ? '1' : '0';
 
         update_option('kbbm_log_retention_days', $retention_days);
+        update_option('kbbm_use_test_server', $use_test_server);
 
         // בצע ניקוי מיידי בהתאם לערך המעודכן
         M365_LM_Database::prune_logs($retention_days);
 
-        wp_send_json_success(array('message' => 'ההגדרות נשמרו בהצלחה', 'log_retention_days' => $retention_days));
+        wp_send_json_success(array(
+            'message' => 'ההגדרות נשמרו בהצלחה',
+            'log_retention_days' => $retention_days,
+            'use_test_server' => $use_test_server,
+        ));
     }
 }
 
