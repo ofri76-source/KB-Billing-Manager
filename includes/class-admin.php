@@ -9,12 +9,12 @@ class M365_LM_Admin {
         add_action('wp_ajax_m365_save_customer', array($this, 'ajax_save_customer'));
         add_action('wp_ajax_m365_delete_customer', array($this, 'ajax_delete_customer'));
         add_action('wp_ajax_m365_get_customer', array($this, 'ajax_get_customer'));
-        add_action('wp_ajax_kbbm_save_customer', array($this, 'ajax_save_customer'));
         add_action('wp_ajax_kbbm_delete_customer', array($this, 'ajax_delete_customer'));
         add_action('wp_ajax_kbbm_get_customer', array($this, 'ajax_get_customer'));
         add_action('wp_ajax_kbbm_generate_script', array($this, 'ajax_generate_script'));
         add_action('wp_ajax_nopriv_kbbm_generate_script', array($this, 'ajax_generate_script'));
         add_action('wp_ajax_kbbm_save_settings', array($this, 'ajax_save_settings'));
+        add_action('wp_ajax_kbbm_add_tenant', array($this, 'ajax_add_tenant'));
     }
     
     // הוספת תפריט ניהול
@@ -166,7 +166,7 @@ class M365_LM_Admin {
     }
     
     // AJAX - שמירת לקוח
-    public function ajax_save_customer() {
+    public static function ajax_save_customer() {
         check_ajax_referer('m365_nonce', 'nonce');
         
         if (!current_user_can('manage_options')) {
@@ -178,21 +178,99 @@ class M365_LM_Admin {
             'customer_name' => sanitize_text_field($_POST['customer_name']),
             'tenant_id' => sanitize_text_field($_POST['tenant_id']),
             'client_id' => sanitize_text_field($_POST['client_id']),
-            'client_secret' => sanitize_text_field($_POST['client_secret']),
+            'client_secret' => sanitize_textarea_field($_POST['client_secret']),
             'tenant_domain' => sanitize_text_field($_POST['tenant_domain'])
         );
-        
+
+        $tenants_json = isset($_POST['tenants']) ? wp_unslash($_POST['tenants']) : '[]';
+        $tenants = json_decode($tenants_json, true);
+        if (!is_array($tenants)) {
+            $tenants = [];
+        }
+
+        $clean_tenants = [];
+        foreach ($tenants as $tenant) {
+            if (!is_array($tenant)) {
+                continue;
+            }
+
+            $tenant_id = sanitize_text_field($tenant['tenant_id'] ?? '');
+            if ($tenant_id === '') {
+                continue;
+            }
+
+            $clean_tenants[] = array(
+                'tenant_id'     => $tenant_id,
+                'client_id'     => sanitize_text_field($tenant['client_id'] ?? ''),
+                'client_secret' => sanitize_textarea_field($tenant['client_secret'] ?? ''),
+                'tenant_domain' => sanitize_text_field($tenant['tenant_domain'] ?? ''),
+            );
+        }
+
         if (!empty($_POST['id'])) {
             $data['id'] = intval($_POST['id']);
         }
-        
+
         $result = M365_LM_Database::save_customer($data);
+
+        if ($result) {
+            M365_LM_Database::replace_customer_tenants($result, $clean_tenants);
+        }
         
         if ($result) {
             wp_send_json_success(array('message' => 'לקוח נשמר בהצלחה'));
         } else {
             wp_send_json_error(array('message' => 'שגיאה בשמירת הלקוח'));
         }
+    }
+
+    public function ajax_add_tenant() {
+        check_ajax_referer('m365_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'אין הרשאה'));
+        }
+
+        $customer_id = isset($_POST['customer_id']) ? intval($_POST['customer_id']) : 0;
+        if (!$customer_id) {
+            wp_send_json_error(array('message' => 'לקוח לא נמצא'));
+        }
+
+        $customer = M365_LM_Database::get_customer($customer_id);
+        if (!$customer) {
+            wp_send_json_error(array('message' => 'לקוח לא נמצא'));
+        }
+
+        $tenant_id     = sanitize_text_field($_POST['tenant_id'] ?? '');
+        $client_id     = sanitize_text_field($_POST['client_id'] ?? '');
+        $client_secret = sanitize_textarea_field($_POST['client_secret'] ?? '');
+        $tenant_domain = sanitize_text_field($_POST['tenant_domain'] ?? '');
+
+        if ($tenant_id === '') {
+            wp_send_json_error(array('message' => 'Tenant ID נדרש'));
+        }
+
+        $existing = M365_LM_Database::get_customer_tenants($customer_id);
+        $clean = array();
+        foreach ($existing as $tenant) {
+            $clean[] = array(
+                'tenant_id'     => sanitize_text_field($tenant->tenant_id ?? ''),
+                'client_id'     => sanitize_text_field($tenant->client_id ?? ''),
+                'client_secret' => sanitize_textarea_field($tenant->client_secret ?? ''),
+                'tenant_domain' => sanitize_text_field($tenant->tenant_domain ?? ''),
+            );
+        }
+
+        $clean[] = array(
+            'tenant_id'     => $tenant_id,
+            'client_id'     => $client_id,
+            'client_secret' => $client_secret,
+            'tenant_domain' => $tenant_domain,
+        );
+
+        M365_LM_Database::replace_customer_tenants($customer_id, $clean);
+
+        wp_send_json_success(array('message' => 'טננט נוסף ללקוח'));
     }
     
     // AJAX - קבלת נתוני לקוח
@@ -201,9 +279,11 @@ class M365_LM_Admin {
         
         $customer_id = intval($_POST['id']);
         $customer = M365_LM_Database::get_customer($customer_id);
-        
+
         if ($customer) {
-            wp_send_json_success($customer);
+            $customer_array = (array) $customer;
+            $customer_array['tenants'] = M365_LM_Database::get_customer_tenants($customer_id);
+            wp_send_json_success($customer_array);
         } else {
             wp_send_json_error(array('message' => 'לקוח לא נמצא'));
         }
@@ -292,13 +372,19 @@ class M365_LM_Admin {
 
         $retention_days = isset($_POST['log_retention_days']) ? intval($_POST['log_retention_days']) : 120;
         $retention_days = $retention_days > 0 ? $retention_days : 120;
+        $use_test_server = isset($_POST['use_test_server']) ? (int) $_POST['use_test_server'] : 0;
 
         update_option('kbbm_log_retention_days', $retention_days);
+        update_option('kbbm_use_test_server', $use_test_server);
 
         // בצע ניקוי מיידי בהתאם לערך המעודכן
         M365_LM_Database::prune_logs($retention_days);
 
-        wp_send_json_success(array('message' => 'ההגדרות נשמרו בהצלחה', 'log_retention_days' => $retention_days));
+        wp_send_json_success(array(
+            'message' => 'ההגדרות נשמרו בהצלחה',
+            'log_retention_days' => $retention_days,
+            'use_test_server' => $use_test_server,
+        ));
     }
 }
 

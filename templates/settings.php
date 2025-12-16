@@ -1,13 +1,15 @@
 <div class="m365-lm-container">
     <?php
-        $main_url       = 'https://kb.macomp.co.il/?page_id=14296';
-        $recycle_url    = 'https://kb.macomp.co.il/?page_id=14291';
-        $settings_url   = 'https://kb.macomp.co.il/?page_id=14292';
-        $logs_url       = 'https://kb.macomp.co.il/?page_id=14285';
-        $alerts_url     = 'https://kb.macomp.co.il/?page_id=14290';
+        $portal_urls    = function_exists('kbbm_get_portal_urls') ? kbbm_get_portal_urls() : array();
+        $main_url       = $portal_urls['main'] ?? 'https://kb.macomp.co.il/?page_id=14296';
+        $recycle_url    = $portal_urls['recycle'] ?? 'https://kb.macomp.co.il/?page_id=14291';
+        $settings_url   = $portal_urls['settings'] ?? 'https://kb.macomp.co.il/?page_id=14292';
+        $logs_url       = $portal_urls['logs'] ?? 'https://kb.macomp.co.il/?page_id=14285';
+        $alerts_url     = $portal_urls['alerts'] ?? 'https://kb.macomp.co.il/?page_id=14290';
         $active         = isset($active) ? $active : '';
         $license_types  = isset($license_types) ? $license_types : array();
         $log_retention_days = isset($log_retention_days) ? intval($log_retention_days) : 120;
+        $use_test_server = (int) get_option('kbbm_use_test_server', 0);
     ?>
     <div class="m365-nav-links">
         <a href="<?php echo esc_url($main_url); ?>" class="<?php echo $active === 'main' ? 'active' : ''; ?>">ראשי</a>
@@ -33,7 +35,10 @@
     <div class="m365-tab-content active" id="customers-tab">
         <div class="m365-section">
             <h3>לקוחות רשומים</h3>
-            <button id="add-customer" class="m365-btn m365-btn-success">הוסף לקוח חדש</button>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button id="add-customer" class="m365-btn m365-btn-success">הוסף לקוח חדש</button>
+                <button id="add-tenant-only" class="m365-btn m365-btn-secondary">הוסף טננט חדש</button>
+            </div>
 
             <div id="customer-form-placeholder"></div>
 
@@ -79,6 +84,16 @@
                             <input type="text" id="customer-tenant-domain" name="tenant_domain" placeholder="example.onmicrosoft.com">
                         </div>
 
+                        <div id="additional-tenants"></div>
+
+                        <div class="form-group">
+                            <button type="button" id="add-tenant-row" class="m365-btn m365-btn-small">
+                                הוסף טננט נוסף
+                            </button>
+                        </div>
+
+                        <input type="hidden" id="customer-tenants-json" name="tenants" value="[]">
+
                         <div class="form-group">
                             <label>הדבקת תוצאות סקריפט/חיבור:</label>
                             <textarea id="customer-paste-source" placeholder="הדבק כאן את ה-Tenant ID, Client ID, Client Secret ועוד..." rows="4"></textarea>
@@ -90,6 +105,43 @@
                             <button type="button" class="m365-btn m365-modal-cancel">ביטול</button>
                         </div>
                     </form>
+            </div>
+
+            <div id="tenant-only-form" class="kbbm-customer-form" style="display:none; margin-top:20px;">
+                <h3>הוסף טננט חדש ללקוח קיים</h3>
+                <form id="tenant-only-form-inner">
+                    <div class="form-group">
+                        <label>בחר לקוח:</label>
+                        <select id="tenant-only-customer-select" required>
+                            <option value="">בחר לקוח</option>
+                            <?php foreach ($customers as $customer): ?>
+                                <option value="<?php echo esc_attr($customer->id); ?>">
+                                    <?php echo esc_html($customer->customer_number); ?> - <?php echo esc_html($customer->customer_name); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Tenant ID:</label>
+                        <input type="text" id="tenant-only-tenant-id" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Client ID:</label>
+                        <input type="text" id="tenant-only-client-id">
+                    </div>
+                    <div class="form-group">
+                        <label>Client Secret:</label>
+                        <input type="password" id="tenant-only-client-secret">
+                    </div>
+                    <div class="form-group">
+                        <label>Tenant Domain:</label>
+                        <input type="text" id="tenant-only-tenant-domain" placeholder="example.onmicrosoft.com">
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="m365-btn m365-btn-primary">הוסף טננט</button>
+                        <button type="button" class="m365-btn m365-modal-cancel" onclick="jQuery('#tenant-only-form').hide();">ביטול</button>
+                    </div>
+                </form>
             </div>
 
             <table id="customers-table" class="m365-table" style="margin-top: 20px;">
@@ -263,6 +315,11 @@
         <div class="m365-section">
             <h3>הגדרות לוגים</h3>
             <form id="kbbm-log-settings-form">
+                <label style="display:block;margin-top:12px;">
+                    <input type="checkbox" id="kbbm-use-test-server" name="use_test_server" <?php checked($use_test_server, 1); ?> />
+                    שרת טסט
+                </label>
+                <small>כאשר האפשרות מסומנת, קישורי הניווט יעברו לשרת הבדיקות (kbtest.macomp.co.il).</small>
                 <div class="form-group">
                     <label>מספר ימים לשמירת לוגים לפני מחיקה:</label>
                     <input type="number" id="kbbm-log-retention-days" name="log_retention_days" min="1" value="<?php echo esc_attr($log_retention_days); ?>" placeholder="120">
@@ -358,4 +415,3 @@
         </div>
     </div>
 </div>
-

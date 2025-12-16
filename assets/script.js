@@ -3,6 +3,98 @@ jQuery(document).ready(function($) {
     const dcCustomers = Array.isArray(m365Ajax.dcCustomers) ? m365Ajax.dcCustomers : [];
     const customerFormWrapper = $('#customer-form-wrapper');
     const customerFormPlaceholder = $('#customer-form-placeholder');
+    const customerForm = $('#customer-form');
+    let additionalTenantsContainer = $('#additional-tenants');
+    const tenantOnlyForm = $('#tenant-only-form');
+    const tenantOnlyInnerForm = $('#tenant-only-form-inner');
+
+    function ensureTenantControls() {
+        if (!customerForm.length) {
+            return;
+        }
+
+        const hasContainer = customerForm.find('#additional-tenants').length > 0;
+        const hasButton = customerForm.find('#add-tenant-row').length > 0;
+        const hasHidden = customerForm.find('#customer-tenants-json').length > 0;
+
+        if (hasContainer && hasButton && hasHidden) {
+            additionalTenantsContainer = customerForm.find('#additional-tenants');
+            return;
+        }
+
+        const fragment = $(`
+            <div id="additional-tenants"></div>
+            <div class="form-group">
+                <button type="button" id="add-tenant-row" class="m365-btn m365-btn-small">
+                    הוסף טננט נוסף
+                </button>
+            </div>
+            <input type="hidden" id="customer-tenants-json" name="tenants" value="[]">
+        `);
+
+        const tenantDomainGroup = customerForm.find('#customer-tenant-domain').closest('.form-group');
+        if (tenantDomainGroup.length) {
+            tenantDomainGroup.after(fragment);
+        } else {
+            customerForm.append(fragment);
+        }
+
+        additionalTenantsContainer = customerForm.find('#additional-tenants');
+    }
+
+    ensureTenantControls();
+
+    function serializeTenants() {
+        const tenants = [];
+
+        const primary = {
+            tenant_id: $('#customer-tenant-id').val() || '',
+            tenant_domain: $('#customer-tenant-domain').val() || '',
+            client_id: $('#customer-client-id').val() || '',
+            client_secret: $('#customer-client-secret').val() || ''
+        };
+
+        tenants.push(primary);
+
+        additionalTenantsContainer.find('.additional-tenant-row').each(function() {
+            const row = $(this);
+            tenants.push({
+                tenant_id: row.find('.tenant-id').val() || '',
+                tenant_domain: row.find('.tenant-domain').val() || '',
+                client_id: row.find('.tenant-client-id').val() || '',
+                client_secret: row.find('.tenant-client-secret').val() || ''
+            });
+        });
+
+        $('#customer-tenants-json').val(JSON.stringify(tenants));
+    }
+
+    function addAdditionalTenantRow(data = {}) {
+        const row = $(`
+            <div class="additional-tenant-row" style="border:1px solid #ddd; padding:10px; margin-top:10px;">
+                <div class="form-group">
+                    <label>Tenant ID:</label>
+                    <input type="text" class="tenant-id" value="${data.tenant_id || ''}">
+                </div>
+                <div class="form-group">
+                    <label>Client ID:</label>
+                    <input type="text" class="tenant-client-id" value="${data.client_id || ''}">
+                </div>
+                <div class="form-group">
+                    <label>Client Secret:</label>
+                    <input type="password" class="tenant-client-secret" value="${data.client_secret || ''}">
+                </div>
+                <div class="form-group">
+                    <label>Tenant Domain:</label>
+                    <input type="text" class="tenant-domain" value="${data.tenant_domain || ''}" placeholder="example.onmicrosoft.com">
+                </div>
+                <button type="button" class="m365-btn m365-btn-small m365-btn-danger remove-tenant-row">הסר</button>
+            </div>
+        `);
+
+        additionalTenantsContainer.append(row);
+        serializeTenants();
+    }
     let inlineFormRow = null;
 
     function hideCustomerForm() {
@@ -460,6 +552,12 @@ jQuery(document).ready(function($) {
         }
     });
 
+    const tenantFieldSelectors = '#customer-tenant-id, #customer-client-id, #customer-client-secret, #customer-tenant-domain';
+
+    $(document).on('input change', `${tenantFieldSelectors}, .additional-tenant-row input`, function() {
+        serializeTenants();
+    });
+
     // הוספת לקוח
     $('#add-customer').on('click', function() {
         $('#customer-modal-title').text('הוסף לקוח חדש');
@@ -468,6 +566,8 @@ jQuery(document).ready(function($) {
         $('#customer-lookup').val('');
         $('#customer-lookup-results').hide();
         $('#customer-paste-source').val('');
+        additionalTenantsContainer.empty();
+        $('#customer-tenants-json').val('[]');
 
         showCustomerFormInPlaceholder();
     });
@@ -497,6 +597,26 @@ jQuery(document).ready(function($) {
                 $('#customer-client-secret').val(customer.client_secret || '');
                 $('#customer-tenant-domain').val(customer.tenant_domain || '');
                 $('#customer-paste-source').val('');
+                additionalTenantsContainer.empty();
+                $('#customer-tenants-json').val('[]');
+                if (customer.tenants && customer.tenants.length > 0) {
+                    customer.tenants.forEach(function(tenant, index) {
+                        if (index === 0) {
+                            $('#customer-tenant-id').val(tenant.tenant_id || customer.tenant_id || '');
+                            $('#customer-client-id').val(tenant.client_id || customer.client_id || '');
+                            $('#customer-client-secret').val(tenant.client_secret || customer.client_secret || '');
+                            $('#customer-tenant-domain').val(tenant.tenant_domain || customer.tenant_domain || '');
+                        } else {
+                            addAdditionalTenantRow({
+                                tenant_id: tenant.tenant_id,
+                                client_id: tenant.client_id,
+                                client_secret: tenant.client_secret,
+                                tenant_domain: tenant.tenant_domain
+                            });
+                        }
+                    });
+                }
+                serializeTenants();
 
                 const row = $(e.target).closest('tr');
                 if (row.length) {
@@ -532,6 +652,60 @@ jQuery(document).ready(function($) {
                 }
             }
         });
+    });
+
+    $(document).on('click', '#add-tenant-row', function() {
+        ensureTenantControls();
+        addAdditionalTenantRow();
+    });
+
+    $('#add-tenant-only').on('click', function() {
+        if (tenantOnlyForm.length) {
+            tenantOnlyForm.toggle();
+            $('html, body').animate({ scrollTop: tenantOnlyForm.offset().top - 60 }, 300);
+        }
+    });
+
+    tenantOnlyInnerForm.on('submit', function(e) {
+        e.preventDefault();
+
+        const customerId = $('#tenant-only-customer-select').val();
+        const tenantId = $('#tenant-only-tenant-id').val().trim();
+        const clientId = $('#tenant-only-client-id').val().trim();
+        const clientSecret = $('#tenant-only-client-secret').val().trim();
+        const tenantDomain = $('#tenant-only-tenant-domain').val().trim();
+
+        if (!customerId) {
+            alert('בחר לקוח');
+            return;
+        }
+        if (!tenantId) {
+            alert('Tenant ID נדרש');
+            return;
+        }
+
+        $.post(m365Ajax.ajaxurl, {
+            action: 'kbbm_add_tenant',
+            nonce: m365Ajax.nonce,
+            customer_id: customerId,
+            tenant_id: tenantId,
+            client_id: clientId,
+            client_secret: clientSecret,
+            tenant_domain: tenantDomain,
+        }, function(response) {
+            if (response && response.success) {
+                showMessage('success', response.data && response.data.message ? response.data.message : 'טננט נוסף');
+                setTimeout(function() { location.reload(); }, 1000);
+            } else {
+                const message = response && response.data && response.data.message ? response.data.message : 'שגיאה בהוספת טננט';
+                alert(message);
+            }
+        });
+    });
+
+    $(document).on('click', '.remove-tenant-row', function() {
+        $(this).closest('.additional-tenant-row').remove();
+        serializeTenants();
     });
 
     // מחיקת לקוח
@@ -589,6 +763,8 @@ jQuery(document).ready(function($) {
     // שמירת לקוח
     $('#customer-form').on('submit', function(e) {
         e.preventDefault();
+
+        serializeTenants();
 
         const formData = $(this).serializeArray();
         formData.push({ name: 'action', value: 'kbbm_save_customer' });
@@ -892,11 +1068,13 @@ jQuery(document).ready(function($) {
         e.preventDefault();
 
         const days = parseInt($('#kbbm-log-retention-days').val(), 10) || 120;
+        const useTestServer = $('#kbbm-use-test-server').is(':checked') ? 1 : 0;
 
         $.post(m365Ajax.ajaxurl, {
             action: 'kbbm_save_settings',
             nonce: m365Ajax.nonce,
-            log_retention_days: days
+            log_retention_days: days,
+            use_test_server: useTestServer
         }, function(response) {
             if (response && response.success) {
                 showMessage('success', (response.data && response.data.message) ? response.data.message : 'ההגדרות נשמרו');
