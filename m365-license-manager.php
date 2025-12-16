@@ -21,6 +21,10 @@ require_once M365_LM_PLUGIN_DIR . 'includes/class-api-connector.php';
 require_once M365_LM_PLUGIN_DIR . 'includes/class-shortcodes.php';
 require_once M365_LM_PLUGIN_DIR . 'includes/class-admin.php';
 
+// Ensure AJAX handler for saving customers is registered even when the admin
+// class hooks have not yet been instantiated (e.g., during admin-ajax calls).
+add_action('wp_ajax_kbbm_save_customer', ['M365_LM_Admin', 'ajax_save_customer']);
+
 add_action('admin_post_kbbm_download_script', 'kbbm_download_script_handler');
 add_action('admin_post_nopriv_kbbm_download_script', 'kbbm_download_script_handler');
 

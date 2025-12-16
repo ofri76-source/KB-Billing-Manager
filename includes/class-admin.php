@@ -9,7 +9,6 @@ class M365_LM_Admin {
         add_action('wp_ajax_m365_save_customer', array($this, 'ajax_save_customer'));
         add_action('wp_ajax_m365_delete_customer', array($this, 'ajax_delete_customer'));
         add_action('wp_ajax_m365_get_customer', array($this, 'ajax_get_customer'));
-        add_action('wp_ajax_kbbm_save_customer', array($this, 'ajax_save_customer'));
         add_action('wp_ajax_kbbm_delete_customer', array($this, 'ajax_delete_customer'));
         add_action('wp_ajax_kbbm_get_customer', array($this, 'ajax_get_customer'));
         add_action('wp_ajax_kbbm_generate_script', array($this, 'ajax_generate_script'));
@@ -166,7 +165,7 @@ class M365_LM_Admin {
     }
     
     // AJAX - שמירת לקוח
-    public function ajax_save_customer() {
+    public static function ajax_save_customer() {
         check_ajax_referer('m365_nonce', 'nonce');
         
         if (!current_user_can('manage_options')) {
