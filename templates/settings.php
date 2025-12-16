@@ -84,7 +84,9 @@
                         <div id="additional-tenants"></div>
 
                         <div class="form-group">
-                            <button type="button" id="add-tenant-row" class="m365-btn m365-btn-small">הוסף טננט נוסף</button>
+                            <button type="button" id="add-tenant-row" class="m365-btn m365-btn-small">
+                                הוסף טננט נוסף
+                            </button>
                         </div>
 
                         <input type="hidden" id="customer-tenants-json" name="tenants" value="[]">
