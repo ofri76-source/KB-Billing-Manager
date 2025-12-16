@@ -14,6 +14,7 @@ class M365_LM_Admin {
         add_action('wp_ajax_kbbm_generate_script', array($this, 'ajax_generate_script'));
         add_action('wp_ajax_nopriv_kbbm_generate_script', array($this, 'ajax_generate_script'));
         add_action('wp_ajax_kbbm_save_settings', array($this, 'ajax_save_settings'));
+        add_action('wp_ajax_kbbm_add_tenant', array($this, 'ajax_add_tenant'));
     }
     
     // הוספת תפריט ניהול
@@ -221,6 +222,55 @@ class M365_LM_Admin {
         } else {
             wp_send_json_error(array('message' => 'שגיאה בשמירת הלקוח'));
         }
+    }
+
+    public function ajax_add_tenant() {
+        check_ajax_referer('m365_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'אין הרשאה'));
+        }
+
+        $customer_id = isset($_POST['customer_id']) ? intval($_POST['customer_id']) : 0;
+        if (!$customer_id) {
+            wp_send_json_error(array('message' => 'לקוח לא נמצא'));
+        }
+
+        $customer = M365_LM_Database::get_customer($customer_id);
+        if (!$customer) {
+            wp_send_json_error(array('message' => 'לקוח לא נמצא'));
+        }
+
+        $tenant_id     = sanitize_text_field($_POST['tenant_id'] ?? '');
+        $client_id     = sanitize_text_field($_POST['client_id'] ?? '');
+        $client_secret = sanitize_textarea_field($_POST['client_secret'] ?? '');
+        $tenant_domain = sanitize_text_field($_POST['tenant_domain'] ?? '');
+
+        if ($tenant_id === '') {
+            wp_send_json_error(array('message' => 'Tenant ID נדרש'));
+        }
+
+        $existing = M365_LM_Database::get_customer_tenants($customer_id);
+        $clean = array();
+        foreach ($existing as $tenant) {
+            $clean[] = array(
+                'tenant_id'     => sanitize_text_field($tenant->tenant_id ?? ''),
+                'client_id'     => sanitize_text_field($tenant->client_id ?? ''),
+                'client_secret' => sanitize_textarea_field($tenant->client_secret ?? ''),
+                'tenant_domain' => sanitize_text_field($tenant->tenant_domain ?? ''),
+            );
+        }
+
+        $clean[] = array(
+            'tenant_id'     => $tenant_id,
+            'client_id'     => $client_id,
+            'client_secret' => $client_secret,
+            'tenant_domain' => $tenant_domain,
+        );
+
+        M365_LM_Database::replace_customer_tenants($customer_id, $clean);
+
+        wp_send_json_success(array('message' => 'טננט נוסף ללקוח'));
     }
     
     // AJAX - קבלת נתוני לקוח

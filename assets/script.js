@@ -5,6 +5,8 @@ jQuery(document).ready(function($) {
     const customerFormPlaceholder = $('#customer-form-placeholder');
     const customerForm = $('#customer-form');
     let additionalTenantsContainer = $('#additional-tenants');
+    const tenantOnlyForm = $('#tenant-only-form');
+    const tenantOnlyInnerForm = $('#tenant-only-form-inner');
 
     function ensureTenantControls() {
         if (!customerForm.length) {
@@ -655,6 +657,50 @@ jQuery(document).ready(function($) {
     $(document).on('click', '#add-tenant-row', function() {
         ensureTenantControls();
         addAdditionalTenantRow();
+    });
+
+    $('#add-tenant-only').on('click', function() {
+        if (tenantOnlyForm.length) {
+            tenantOnlyForm.toggle();
+            $('html, body').animate({ scrollTop: tenantOnlyForm.offset().top - 60 }, 300);
+        }
+    });
+
+    tenantOnlyInnerForm.on('submit', function(e) {
+        e.preventDefault();
+
+        const customerId = $('#tenant-only-customer-select').val();
+        const tenantId = $('#tenant-only-tenant-id').val().trim();
+        const clientId = $('#tenant-only-client-id').val().trim();
+        const clientSecret = $('#tenant-only-client-secret').val().trim();
+        const tenantDomain = $('#tenant-only-tenant-domain').val().trim();
+
+        if (!customerId) {
+            alert('בחר לקוח');
+            return;
+        }
+        if (!tenantId) {
+            alert('Tenant ID נדרש');
+            return;
+        }
+
+        $.post(m365Ajax.ajaxurl, {
+            action: 'kbbm_add_tenant',
+            nonce: m365Ajax.nonce,
+            customer_id: customerId,
+            tenant_id: tenantId,
+            client_id: clientId,
+            client_secret: clientSecret,
+            tenant_domain: tenantDomain,
+        }, function(response) {
+            if (response && response.success) {
+                showMessage('success', response.data && response.data.message ? response.data.message : 'טננט נוסף');
+                setTimeout(function() { location.reload(); }, 1000);
+            } else {
+                const message = response && response.data && response.data.message ? response.data.message : 'שגיאה בהוספת טננט';
+                alert(message);
+            }
+        });
     });
 
     $(document).on('click', '.remove-tenant-row', function() {

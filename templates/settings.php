@@ -35,7 +35,10 @@
     <div class="m365-tab-content active" id="customers-tab">
         <div class="m365-section">
             <h3>לקוחות רשומים</h3>
-            <button id="add-customer" class="m365-btn m365-btn-success">הוסף לקוח חדש</button>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button id="add-customer" class="m365-btn m365-btn-success">הוסף לקוח חדש</button>
+                <button id="add-tenant-only" class="m365-btn m365-btn-secondary">הוסף טננט חדש</button>
+            </div>
 
             <div id="customer-form-placeholder"></div>
 
@@ -102,6 +105,43 @@
                             <button type="button" class="m365-btn m365-modal-cancel">ביטול</button>
                         </div>
                     </form>
+            </div>
+
+            <div id="tenant-only-form" class="kbbm-customer-form" style="display:none; margin-top:20px;">
+                <h3>הוסף טננט חדש ללקוח קיים</h3>
+                <form id="tenant-only-form-inner">
+                    <div class="form-group">
+                        <label>בחר לקוח:</label>
+                        <select id="tenant-only-customer-select" required>
+                            <option value="">בחר לקוח</option>
+                            <?php foreach ($customers as $customer): ?>
+                                <option value="<?php echo esc_attr($customer->id); ?>">
+                                    <?php echo esc_html($customer->customer_number); ?> - <?php echo esc_html($customer->customer_name); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Tenant ID:</label>
+                        <input type="text" id="tenant-only-tenant-id" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Client ID:</label>
+                        <input type="text" id="tenant-only-client-id">
+                    </div>
+                    <div class="form-group">
+                        <label>Client Secret:</label>
+                        <input type="password" id="tenant-only-client-secret">
+                    </div>
+                    <div class="form-group">
+                        <label>Tenant Domain:</label>
+                        <input type="text" id="tenant-only-tenant-domain" placeholder="example.onmicrosoft.com">
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="m365-btn m365-btn-primary">הוסף טננט</button>
+                        <button type="button" class="m365-btn m365-modal-cancel" onclick="jQuery('#tenant-only-form').hide();">ביטול</button>
+                    </div>
+                </form>
             </div>
 
             <table id="customers-table" class="m365-table" style="margin-top: 20px;">
