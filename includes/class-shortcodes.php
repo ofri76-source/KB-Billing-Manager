@@ -149,43 +149,56 @@ class M365_LM_Shortcodes {
             return array('success' => false, 'message' => 'לקוח לא נמצא', 'count' => 0);
         }
 
-        if (empty($customer->tenant_id) || empty($customer->client_id) || empty($customer->client_secret)) {
-            M365_LM_Database::log_event('error', 'sync_licenses', 'חסרים פרטי Tenant/Client להגדרת חיבור', $customer_id);
-            return array('success' => false, 'message' => 'חסרים פרטי Tenant/Client להגדרת חיבור', 'count' => 0);
-        }
-
-        $api = new M365_LM_API_Connector(
-            $customer->tenant_id,
-            $customer->client_id,
-            $customer->client_secret
-        );
-
-        $skus = $api->get_subscribed_skus();
-        if (empty($skus['success'])) {
-            $message = $skus['message'] ?? 'Graph error';
-            M365_LM_Database::update_connection_status($customer_id, 'failed', $message);
-            M365_LM_Database::log_event('error', 'sync_licenses', $message, $customer_id, $skus);
-            return array('success' => false, 'message' => 'Graph error: ' . $message, 'count' => 0);
+        $tenants = M365_LM_Database::get_customer_tenants($customer_id);
+        if (empty($tenants)) {
+            $tenants = array((object) array(
+                'tenant_id'     => $customer->tenant_id,
+                'client_id'     => $customer->client_id,
+                'client_secret' => $customer->client_secret,
+                'tenant_domain' => $customer->tenant_domain,
+            ));
         }
 
         $licenses_saved = 0;
-        foreach ($skus['skus'] as $sku) {
-            $data = array(
-                'customer_id'      => $customer_id,
-                'sku_id'           => $sku['sku_id'],
-                'plan_name'        => $sku['plan_name'],
-                'quantity'         => $sku['enabled_units'],
-                'enabled_units'    => $sku['enabled_units'],
-                'consumed_units'   => $sku['consumed_units'],
-                'billing_cycle'    => 'monthly',
-                'billing_frequency'=> '1',
-                'cost_price'       => 0,
-                'selling_price'    => 0,
-                'status_text'      => $sku['status'] ?? '',
+        foreach ($tenants as $tenant) {
+            if (empty($tenant->tenant_id) || empty($tenant->client_id) || empty($tenant->client_secret)) {
+                M365_LM_Database::log_event('error', 'sync_licenses', 'חסרים פרטי Tenant/Client להגדרת חיבור', $customer_id, $tenant);
+                continue;
+            }
+
+            $api = new M365_LM_API_Connector(
+                $tenant->tenant_id,
+                $tenant->client_id,
+                $tenant->client_secret
             );
 
-            M365_LM_Database::upsert_license_by_sku($customer_id, $sku['sku_id'], $data);
-            $licenses_saved++;
+            $skus = $api->get_subscribed_skus();
+            if (empty($skus['success'])) {
+                $message = $skus['message'] ?? 'Graph error';
+                M365_LM_Database::update_connection_status($customer_id, 'failed', $message);
+                M365_LM_Database::log_event('error', 'sync_licenses', $message, $customer_id, $skus);
+                continue;
+            }
+
+            foreach ($skus['skus'] as $sku) {
+                $data = array(
+                    'customer_id'      => $customer_id,
+                    'sku_id'           => $sku['sku_id'],
+                    'plan_name'        => $sku['plan_name'],
+                    'quantity'         => $sku['enabled_units'],
+                    'enabled_units'    => $sku['enabled_units'],
+                    'consumed_units'   => $sku['consumed_units'],
+                    'billing_cycle'    => 'monthly',
+                    'billing_frequency'=> '1',
+                    'cost_price'       => 0,
+                    'selling_price'    => 0,
+                    'status_text'      => $sku['status'] ?? '',
+                    'tenant_domain'    => isset($tenant->tenant_domain) ? $tenant->tenant_domain : '',
+                );
+
+                M365_LM_Database::upsert_license_by_sku($customer_id, $sku['sku_id'], $data, $data['tenant_domain']);
+                $licenses_saved++;
+            }
         }
 
         M365_LM_Database::update_connection_status($customer_id, 'connected', 'Last sync successful');
@@ -348,11 +361,12 @@ class M365_LM_Shortcodes {
         ?>
         <div class="m365-lm-container">
             <?php
-                $main_url     = 'https://kb.macomp.co.il/?page_id=14296';
-                $recycle_url  = 'https://kb.macomp.co.il/?page_id=14291';
-                $settings_url = 'https://kb.macomp.co.il/?page_id=14292';
-                $logs_url     = 'https://kb.macomp.co.il/?page_id=14285';
-                $alerts_url   = 'https://kb.macomp.co.il/?page_id=14290';
+                $portal_urls  = function_exists('kbbm_get_portal_urls') ? kbbm_get_portal_urls() : array();
+                $main_url     = $portal_urls['main'] ?? 'https://kb.macomp.co.il/?page_id=14296';
+                $recycle_url  = $portal_urls['recycle'] ?? 'https://kb.macomp.co.il/?page_id=14291';
+                $settings_url = $portal_urls['settings'] ?? 'https://kb.macomp.co.il/?page_id=14292';
+                $logs_url     = $portal_urls['logs'] ?? 'https://kb.macomp.co.il/?page_id=14285';
+                $alerts_url   = $portal_urls['alerts'] ?? 'https://kb.macomp.co.il/?page_id=14290';
                 $active       = 'logs';
             ?>
             <div class="m365-nav-links">
