@@ -3,7 +3,44 @@ jQuery(document).ready(function($) {
     const dcCustomers = Array.isArray(m365Ajax.dcCustomers) ? m365Ajax.dcCustomers : [];
     const customerFormWrapper = $('#customer-form-wrapper');
     const customerFormPlaceholder = $('#customer-form-placeholder');
-    const additionalTenantsContainer = $('#additional-tenants');
+    const customerForm = $('#customer-form');
+    let additionalTenantsContainer = $('#additional-tenants');
+
+    function ensureTenantControls() {
+        if (!customerForm.length) {
+            return;
+        }
+
+        const hasContainer = customerForm.find('#additional-tenants').length > 0;
+        const hasButton = customerForm.find('#add-tenant-row').length > 0;
+        const hasHidden = customerForm.find('#customer-tenants-json').length > 0;
+
+        if (hasContainer && hasButton && hasHidden) {
+            additionalTenantsContainer = customerForm.find('#additional-tenants');
+            return;
+        }
+
+        const fragment = $(`
+            <div id="additional-tenants"></div>
+            <div class="form-group">
+                <button type="button" id="add-tenant-row" class="m365-btn m365-btn-small">
+                    הוסף טננט נוסף
+                </button>
+            </div>
+            <input type="hidden" id="customer-tenants-json" name="tenants" value="[]">
+        `);
+
+        const tenantDomainGroup = customerForm.find('#customer-tenant-domain').closest('.form-group');
+        if (tenantDomainGroup.length) {
+            tenantDomainGroup.after(fragment);
+        } else {
+            customerForm.append(fragment);
+        }
+
+        additionalTenantsContainer = customerForm.find('#additional-tenants');
+    }
+
+    ensureTenantControls();
 
     function serializeTenants() {
         const tenants = [];
@@ -615,7 +652,8 @@ jQuery(document).ready(function($) {
         });
     });
 
-    $('#add-tenant-row').on('click', function() {
+    $(document).on('click', '#add-tenant-row', function() {
+        ensureTenantControls();
         addAdditionalTenantRow();
     });
 
